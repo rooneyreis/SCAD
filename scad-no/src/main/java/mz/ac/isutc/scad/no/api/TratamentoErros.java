@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import mz.ac.isutc.scad.no.movimentos.ErrosMovimento.ArmazemForaDoFragmento;
 import mz.ac.isutc.scad.no.movimentos.ErrosMovimento.ProdutoNaoEncontrado;
 import mz.ac.isutc.scad.no.movimentos.ErrosMovimento.StockInsuficiente;
+import mz.ac.isutc.scad.no.exclusao.ExclusaoMutua.ExclusaoIndisponivelException;
+import mz.ac.isutc.scad.no.ordens.ServicoOrdens.EstadoInvalidoException;
+import mz.ac.isutc.scad.no.ordens.ServicoOrdens.OrdemInexistenteException;
 
 /** Converte excepções em respostas HTTP com corpo "problem+json" (RFC 9457). */
 @RestControllerAdvice
@@ -35,6 +38,21 @@ public class TratamentoErros {
     @ExceptionHandler(ArmazemForaDoFragmento.class)
     ProblemDetail armazemForaDoFragmento(ArmazemForaDoFragmento e) {
         return problema(HttpStatus.UNPROCESSABLE_ENTITY, "Armazém de outro fragmento", e.getMessage());
+    }
+
+    @ExceptionHandler(OrdemInexistenteException.class)
+    ProblemDetail ordemInexistente(OrdemInexistenteException e) {
+        return problema(HttpStatus.NOT_FOUND, "Ordem não encontrada", e.getMessage());
+    }
+
+    @ExceptionHandler(EstadoInvalidoException.class)
+    ProblemDetail estadoInvalido(EstadoInvalidoException e) {
+        return problema(HttpStatus.CONFLICT, "Estado da ordem não permite a operação", e.getMessage());
+    }
+
+    @ExceptionHandler(ExclusaoIndisponivelException.class)
+    ProblemDetail exclusaoIndisponivel(ExclusaoIndisponivelException e) {
+        return problema(HttpStatus.SERVICE_UNAVAILABLE, "Exclusão mútua indisponível", e.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

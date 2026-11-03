@@ -33,11 +33,15 @@ public final class FragmentoPostgresTeste {
     }
 
     public static FragmentosBd fragmentos(String regiao, PostgreSQLContainer<?> pg) {
-        String endereco = pg.getHost() + ":" + pg.getMappedPort(5432);
-        PropriedadesNo props = new PropriedadesNo(regiao, null, null,
-                new PropriedadesNo.Bd("scad", "scad", "scad"),
-                Map.of(regiao, new PropriedadesNo.Fragmento(endereco, null)),
-                new PropriedadesNo.Relogio(0));
+        return fragmentos(regiao, Map.of(regiao, pg));
+    }
+
+    /** Vários fragmentos (um container por região), vistos pelo nó {@code regiaoLocal}. */
+    public static FragmentosBd fragmentos(String regiaoLocal, Map<String, PostgreSQLContainer<?>> pgs) {
+        Map<String, PropriedadesNo.Fragmento> cfg = new java.util.LinkedHashMap<>();
+        pgs.forEach((r, pg) -> cfg.put(r, new PropriedadesNo.Fragmento(pg.getHost() + ":" + pg.getMappedPort(5432), null)));
+        PropriedadesNo props = new PropriedadesNo(regiaoLocal, null, null,
+                new PropriedadesNo.Bd("scad", "scad", "scad"), cfg, new PropriedadesNo.Relogio(0));
         return new FragmentosBd(props);
     }
 }

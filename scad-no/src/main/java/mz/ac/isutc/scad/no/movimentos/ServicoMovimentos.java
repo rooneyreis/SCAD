@@ -10,6 +10,7 @@ import mz.ac.isutc.scad.no.bd.FragmentosBd;
 import mz.ac.isutc.scad.no.movimentos.ErrosMovimento.ArmazemForaDoFragmento;
 import mz.ac.isutc.scad.no.movimentos.ErrosMovimento.ProdutoNaoEncontrado;
 import mz.ac.isutc.scad.no.movimentos.ErrosMovimento.StockInsuficiente;
+import mz.ac.isutc.scad.no.reposicao.PedidosReposicao;
 import mz.ac.isutc.scad.no.stock.Alerta;
 import mz.ac.isutc.scad.no.stock.Movimento;
 import mz.ac.isutc.scad.no.stock.Movimento.TipoMovimento;
@@ -18,7 +19,8 @@ import mz.ac.isutc.scad.no.stock.RepositorioStock;
 import mz.ac.isutc.scad.no.stock.Stock;
 
 /**
- * Passo 1 e 2 do fluxo de compra: regista a saída de stock e, se for o caso, emite o alerta.
+ * Passos 1 e 2 do fluxo de compra: regista a saída de stock e, se for o caso, emite o alerta
+ * e pede a reposição.
  *
  * <p>Numa única transacção local: retira o stock (de forma atómica), grava o movimento com
  * carimbo de Lamport e hora corrigida, e grava o alerta na fila local. O envio do alerta à
@@ -34,10 +36,11 @@ public class ServicoMovimentos {
     private final DespachoAlertas despacho;
     private final RelogioLamport lamport;
     private final RelogioCorrigido relogio;
+    private final PedidosReposicao reposicao;
 
     public ServicoMovimentos(FragmentosBd fragmentos, RepositorioStock stock, RepositorioMovimentos movimentos,
                              DetectorStock detector, DespachoAlertas despacho,
-                             RelogioLamport lamport, RelogioCorrigido relogio) {
+                             RelogioLamport lamport, RelogioCorrigido relogio, PedidosReposicao reposicao) {
         this.fragmentos = fragmentos;
         this.stock = stock;
         this.movimentos = movimentos;
@@ -45,6 +48,7 @@ public class ServicoMovimentos {
         this.despacho = despacho;
         this.lamport = lamport;
         this.relogio = relogio;
+        this.reposicao = reposicao;
     }
 
     public ResultadoSaida registarSaida(PedidoSaida pedido) {
@@ -64,7 +68,10 @@ public class ServicoMovimentos {
         });
 
         if (resultado.alerta() != null) {
-            despacho.solicitarEnvio();
+            despacho.solicitarEnvio();      // passo 2: alerta à Central (CORBA)
+        }
+        if (resultado.precisaReposicao()) {
+            reposicao.solicitar(pedido.produtoId());   // passos 3-6, em segundo plano
         }
         return resultado;
     }

@@ -23,15 +23,20 @@ public class ConfiguracaoRelogios {
         return new RelogioCorrigido(desvio);
     }
 
-    /** Ao reiniciar, o relógio de Lamport continua a partir do maior carimbo já gravado no fragmento. */
+    /**
+     * Ao reiniciar, o relógio de Lamport continua a partir do maior carimbo já gravado no fragmento
+     * (os ids das ordens usam o carimbo, por isso nunca se podem repetir).
+     */
     @Bean
     RelogioLamport relogioLamport(FragmentosBd fragmentos) {
         RelogioLamport relogio = new RelogioLamport();
         try {
             Long maior = fragmentos.jdbcLocal().queryForObject("""
                     SELECT greatest((SELECT max(ts_lamport) FROM movimento_stock),
-                                    (SELECT max(ts_lamport) FROM alerta))
-                    """, Long.class);
+                                    (SELECT max(ts_lamport) FROM alerta),
+                                    (SELECT max(ts_lamport) FROM ordem_compra WHERE coordenador = ?),
+                                    (SELECT max(ts_lamport) FROM log_2pc))
+                    """, Long.class, fragmentos.regiaoLocal());
             relogio.garantirMinimo(maior == null ? 0 : maior);
             log.info("Relógio de Lamport retomado em {}", relogio.actual());
         } catch (DataAccessException e) {

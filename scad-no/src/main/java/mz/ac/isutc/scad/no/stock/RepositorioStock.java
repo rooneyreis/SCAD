@@ -28,7 +28,12 @@ public class RepositorioStock {
     }
 
     public Optional<Stock> procurar(String produtoId) {
-        return fragmentos.jdbcLocal().query(
+        return procurarEm(fragmentos.regiaoLocal(), produtoId);
+    }
+
+    /** Stock do produto no fragmento de outra região (leitura distribuída). */
+    public Optional<Stock> procurarEm(String regiao, String produtoId) {
+        return fragmentos.jdbc(regiao).query(
                 "SELECT * FROM stock WHERE produto_id = ?", MAPEADOR, produtoId).stream().findFirst();
     }
 
@@ -47,7 +52,11 @@ public class RepositorioStock {
     }
 
     public List<StockDetalhado> listarDetalhado() {
-        return fragmentos.jdbcLocal().query("""
+        return listarDetalhado(fragmentos.regiaoLocal());
+    }
+
+    public List<StockDetalhado> listarDetalhado(String regiao) {
+        return fragmentos.jdbc(regiao).query("""
                 SELECT s.*, p.nome AS produto_nome, p.unidade, p.lote,
                        f.id AS fornecedor_id, f.nome AS fornecedor_nome, f.protocolo
                   FROM stock s

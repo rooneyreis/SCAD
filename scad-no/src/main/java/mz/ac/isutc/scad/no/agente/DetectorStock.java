@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import mz.ac.isutc.scad.common.relogio.RelogioCorrigido;
 import mz.ac.isutc.scad.common.relogio.RelogioLamport;
 import mz.ac.isutc.scad.no.bd.FragmentosBd;
+import mz.ac.isutc.scad.no.reposicao.PedidosReposicao;
 import mz.ac.isutc.scad.no.stock.Alerta;
 import mz.ac.isutc.scad.no.stock.RepositorioAlertas;
 import mz.ac.isutc.scad.no.stock.RepositorioStock;
@@ -21,7 +22,8 @@ import mz.ac.isutc.scad.no.stock.Stock;
  * Agente de stock: detecta níveis que exigem alerta e coloca o alerta na fila local.
  *
  * <p>A detecção corre (1) logo a seguir a cada saída de stock, na mesma transacção do movimento,
- * e (2) periodicamente, para apanhar estados que já existiam no arranque. Um estado só gera
+ * e (2) periodicamente, para apanhar estados que já existiam no arranque (e voltar a pedir a
+ * reposição de produtos que continuem abaixo do mínimo, por exemplo depois de um 2PC abortado). Um estado só gera
  * alerta uma vez (ver {@link RepositorioAlertas#ultimoAlertaDescreve}).
  */
 @Component
@@ -35,15 +37,18 @@ public class DetectorStock {
     private final RelogioLamport lamport;
     private final RelogioCorrigido relogio;
     private final DespachoAlertas despacho;
+    private final PedidosReposicao reposicao;
 
     public DetectorStock(RepositorioStock stock, RepositorioAlertas alertas, FragmentosBd fragmentos,
-                         RelogioLamport lamport, RelogioCorrigido relogio, DespachoAlertas despacho) {
+                         RelogioLamport lamport, RelogioCorrigido relogio, DespachoAlertas despacho,
+                         PedidosReposicao reposicao) {
         this.stock = stock;
         this.alertas = alertas;
         this.fragmentos = fragmentos;
         this.lamport = lamport;
         this.relogio = relogio;
         this.despacho = despacho;
+        this.reposicao = reposicao;
     }
 
     /**
@@ -69,6 +74,9 @@ public class DetectorStock {
             for (Stock s : stock.listar()) {
                 Optional<Alerta> a = fragmentos.transaccaoLocal().execute(estado -> avaliar(s));
                 novos |= a != null && a.isPresent();
+                if (s.precisaReposicao()) {
+                    reposicao.solicitar(s.produtoId());   // ex.: produto já abaixo do mínimo no arranque
+                }
             }
             if (novos) {
                 despacho.solicitarEnvio();

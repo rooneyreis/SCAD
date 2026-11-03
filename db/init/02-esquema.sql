@@ -94,3 +94,17 @@ CREATE TABLE alerta (
     FOREIGN KEY (armazem_id, produto_id) REFERENCES stock (armazem_id, produto_id)
 );
 CREATE INDEX idx_alerta_pendente ON alerta (ts_lamport) WHERE enviado_em IS NULL;
+
+-- Log do coordenador do 2PC (não é fragmentado: fica no fragmento do nó coordenador).
+-- A decisão é gravada ANTES de ser comunicada aos participantes; se o coordenador morrer
+-- entre as fases, ao reiniciar lê este log e conclui as transacções preparadas.
+CREATE TABLE log_2pc (
+    transacao_id  VARCHAR(60) PRIMARY KEY,
+    tipo          VARCHAR(20) NOT NULL,
+    coordenador   VARCHAR(10) NOT NULL,
+    participantes TEXT        NOT NULL,          -- ex.: "NORTE,CENTRO,SUL"
+    decisao       VARCHAR(10) NOT NULL CHECK (decisao IN ('COMMIT', 'ABORT')),
+    concluida     BOOLEAN     NOT NULL DEFAULT false,
+    ts_lamport    BIGINT      NOT NULL,
+    ts_corrigido  TIMESTAMPTZ NOT NULL
+);

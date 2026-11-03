@@ -38,7 +38,11 @@ public class RepositorioMovimentos {
     }
 
     public List<Movimento> recentes(int limite) {
-        return fragmentos.jdbcLocal().query(
+        return recentes(fragmentos.regiaoLocal(), limite);
+    }
+
+    public List<Movimento> recentes(String regiao, int limite) {
+        return fragmentos.jdbc(regiao).query(
                 "SELECT * FROM movimento_stock ORDER BY ts_lamport DESC, id DESC LIMIT ?", MAPEADOR, limite);
     }
 

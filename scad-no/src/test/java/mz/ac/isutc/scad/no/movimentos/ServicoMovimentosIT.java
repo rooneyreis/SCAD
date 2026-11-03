@@ -57,6 +57,7 @@ class ServicoMovimentosIT {
     private static FragmentosBd fragmentos;
 
     private final CentralFalsa central = new CentralFalsa();
+    private final List<String> reposicoes = new java.util.concurrent.CopyOnWriteArrayList<>();
     private final RelogioLamport lamport = new RelogioLamport();
     private final RelogioCorrigido relogio = new RelogioCorrigido(
             Clock.fixed(Instant.parse("2026-11-04T10:00:00Z"), ZoneOffset.UTC), DESVIO_MS);
@@ -91,9 +92,9 @@ class ServicoMovimentosIT {
         stock = new RepositorioStock(fragmentos);
         alertas = new RepositorioAlertas(fragmentos);
         despacho = new DespachoAlertas(alertas, central, relogio, Runnable::run);  // envios síncronos: testes deterministas
-        detector = new DetectorStock(stock, alertas, fragmentos, lamport, relogio, despacho);
+        detector = new DetectorStock(stock, alertas, fragmentos, lamport, relogio, despacho, reposicoes::add);
         servico = new ServicoMovimentos(fragmentos, stock, new RepositorioMovimentos(fragmentos),
-                detector, despacho, lamport, relogio);
+                detector, despacho, lamport, relogio, reposicoes::add);
     }
 
     @Test
@@ -119,6 +120,7 @@ class ServicoMovimentosIT {
         assertNotNull(r.alerta());
         assertEquals(NivelStock.CRITICO, r.alerta().nivel());
         assertTrue(r.alerta().tsLamport() > r.movimento().tsLamport(), "o alerta acontece depois do movimento");
+        assertEquals(List.of("ARROZ-25"), reposicoes, "abaixo do mínimo: pede a reposição");
 
         // Entregue à Central e retirado da fila local
         assertEquals(1, central.recebidos.size());
