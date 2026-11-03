@@ -1,0 +1,17 @@
+server:
+  port: 8080
+
+scad:
+  regiao: ${NO_REGIAO:NORTE}
+  corba:
+    host-anunciado: ${CORBA_HOST_ANUNCIADO}
+    porta: ${CORBA_PORTA:3701}
+    naming: ${CORBA_NAMING}
+  hdfs:
+    uri: ${HDFS_URI}
+    utilizador: ${HDFS_UTILIZADOR:scad}
+
+logging:
+  level:
+    org.jacorb: WARN
+    org.apache.hadoop: WARN

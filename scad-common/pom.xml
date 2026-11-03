@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>mz.ac.isutc.scad</groupId>
+        <artifactId>scad</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>scad-common</artifactId>
+    <name>scad-common</name>
+    <description>Código partilhado: stubs CORBA gerados do IDL, ORB, cliente HDFS</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.jacorb</groupId>
+            <artifactId>jacorb</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.jacorb</groupId>
+            <artifactId>jacorb-omgapi</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.yoko</groupId>
+            <artifactId>yoko-rmi-spec</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-client-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-client-runtime</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <!-- Só para gerar o código a partir do IDL (não vai para as imagens) -->
+        <dependency>
+            <groupId>org.jacorb</groupId>
+            <artifactId>jacorb-idl-compiler</artifactId>
+            <version>${jacorb.version}</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Gera os stubs/skeletons Java a partir de ../idl/SCAD.idl com o compilador IDL do JacORB -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>compilar-idl</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <!-- Corre numa JVM separada: o compilador IDL termina com System.exit(), o que mataria o Maven -->
+                <configuration>
+                    <executable>java</executable>
+                    <classpathScope>compile</classpathScope>
+                    <arguments>
+                        <argument>-classpath</argument>
+                        <classpath/>
+                        <argument>org.jacorb.idl.parser</argument>
+                        <argument>-d</argument>
+                        <argument>${project.build.directory}/generated-sources/idl</argument>
+                        <argument>-i2jpackage</argument>
+                        <argument>SCAD:mz.ac.isutc.scad.corba</argument>
+                        <argument>${project.basedir}/../idl/SCAD.idl</argument>
+                    </arguments>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>adicionar-fontes-idl</id>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                <source>${project.build.directory}/generated-sources/idl</source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

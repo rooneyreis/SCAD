@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.5</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>mz.ac.isutc.scad</groupId>
+    <artifactId>scad</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+    <name>SCAD - Sistema de Compras Automáticas Distribuídas</name>
+
+    <modules>
+        <module>scad-common</module>
+        <module>scad-no</module>
+        <module>scad-central</module>
+    </modules>
+
+    <properties>
+        <java.version>17</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <jacorb.version>3.9</jacorb.version>
+        <hadoop.version>3.4.1</hadoop.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>mz.ac.isutc.scad</groupId>
+                <artifactId>scad-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- CORBA: o JDK 11+ já não traz org.omg.*; vem do jacorb-omgapi -->
+            <dependency>
+                <groupId>org.jacorb</groupId>
+                <artifactId>jacorb</artifactId>
+                <version>${jacorb.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jacorb</groupId>
+                <artifactId>jacorb-omgapi</artifactId>
+                <version>${jacorb.version}</version>
+            </dependency>
+            <!-- javax.rmi.CORBA (RMI-IIOP) também saiu do JDK 11+, e o JacORB precisa dele
+                 (org.jacorb.orb.Reference estende javax.rmi.CORBA.Stub). Excluímos o org.omg.* da Yoko
+                 para não duplicar as classes do jacorb-omgapi. -->
+            <dependency>
+                <groupId>org.apache.yoko</groupId>
+                <artifactId>yoko-rmi-spec</artifactId>
+                <version>1.0</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.apache.yoko</groupId>
+                        <artifactId>yoko-spec-corba</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <!-- Cliente HDFS "sombreado" (shaded): evita conflitos de dependências com o Spring Boot -->
+            <dependency>
+                <groupId>org.apache.hadoop</groupId>
+                <artifactId>hadoop-client-api</artifactId>
+                <version>${hadoop.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.hadoop</groupId>
+                <artifactId>hadoop-client-runtime</artifactId>
+                <version>${hadoop.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <!-- Copia as dependências para target/lib: as imagens Docker correm com "java -cp app.jar:lib/*" -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>copiar-dependencias</id>
+                            <phase>package</phase>
+                            <goals>
+                                <goal>copy-dependencies</goal>
+                            </goals>
+                            <configuration>
+                                <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                                <includeScope>runtime</includeScope>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

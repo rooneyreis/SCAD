@@ -1,0 +1,205 @@
+# Modo LOCAL: o sistema completo num só PC (para desenvolvimento).
+# Os serviços falam entre si pelos nomes da rede Docker; só se publicam as portas úteis no PC.
+#
+#   docker compose -f deploy/local/docker-compose.yml up -d --build
+name: scad-local
+
+x-pg-primario: &pg-primario
+  image: postgres:16
+  command: >
+    postgres
+    -c wal_level=replica
+    -c max_wal_senders=10
+    -c max_replication_slots=10
+    -c max_prepared_transactions=50
+    -c hot_standby=on
+  environment:
+    POSTGRES_USER: scad
+    POSTGRES_PASSWORD: ${PG_PASSWORD:-scad}
+    POSTGRES_DB: scad
+    REPLICACAO_PASSWORD: ${REPLICACAO_PASSWORD:-replica}
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U scad -d scad"]
+    interval: 3s
+    timeout: 3s
+    retries: 20
+  restart: unless-stopped
+
+x-pg-replica: &pg-replica
+  image: postgres:16
+  user: postgres
+  entrypoint: ["bash", "/scripts/iniciar-replica.sh"]
+  restart: unless-stopped
+
+x-datanode: &datanode
+  image: apache/hadoop:3.4.1
+  command: ["hdfs", "datanode"]
+  env_file: hadoop.env
+  depends_on: [namenode]
+  restart: unless-stopped
+
+x-no: &no
+  build:
+    context: ../..
+    target: no
+  image: scad/no:dev
+  depends_on: [naming]
+  restart: unless-stopped
+
+services:
+
+  # ---------------- PostgreSQL: 3 fragmentos (primários) + réplicas em anel ----------------
+  pg-norte:
+    <<: *pg-primario
+    volumes:
+      - pg-norte:/var/lib/postgresql/data
+      - ../../db/replicacao/01-utilizador-replicacao.sh:/docker-entrypoint-initdb.d/01-utilizador-replicacao.sh:ro
+  pg-centro:
+    <<: *pg-primario
+    volumes:
+      - pg-centro:/var/lib/postgresql/data
+      - ../../db/replicacao/01-utilizador-replicacao.sh:/docker-entrypoint-initdb.d/01-utilizador-replicacao.sh:ro
+  pg-sul:
+    <<: *pg-primario
+    volumes:
+      - pg-sul:/var/lib/postgresql/data
+      - ../../db/replicacao/01-utilizador-replicacao.sh:/docker-entrypoint-initdb.d/01-utilizador-replicacao.sh:ro
+
+  pg-norte-replica:
+    <<: *pg-replica
+    environment:
+      PRIMARIO_HOST: pg-norte
+      PRIMARIO_PORTA: 5432
+      SLOT_REPLICACAO: replica_norte
+      REPLICACAO_PASSWORD: ${REPLICACAO_PASSWORD:-replica}
+    volumes:
+      - pg-norte-replica:/var/lib/postgresql/data
+      - ../../db/replicacao:/scripts:ro
+    depends_on:
+      pg-norte: { condition: service_healthy }
+  pg-centro-replica:
+    <<: *pg-replica
+    environment:
+      PRIMARIO_HOST: pg-centro
+      PRIMARIO_PORTA: 5432
+      SLOT_REPLICACAO: replica_centro
+      REPLICACAO_PASSWORD: ${REPLICACAO_PASSWORD:-replica}
+    volumes:
+      - pg-centro-replica:/var/lib/postgresql/data
+      - ../../db/replicacao:/scripts:ro
+    depends_on:
+      pg-centro: { condition: service_healthy }
+  pg-sul-replica:
+    <<: *pg-replica
+    environment:
+      PRIMARIO_HOST: pg-sul
+      PRIMARIO_PORTA: 5432
+      SLOT_REPLICACAO: replica_sul
+      REPLICACAO_PASSWORD: ${REPLICACAO_PASSWORD:-replica}
+    volumes:
+      - pg-sul-replica:/var/lib/postgresql/data
+      - ../../db/replicacao:/scripts:ro
+    depends_on:
+      pg-sul: { condition: service_healthy }
+
+  # ---------------- HDFS: 1 NameNode + 3 DataNodes ----------------
+  namenode:
+    image: apache/hadoop:3.4.1
+    hostname: namenode
+    command: ["hdfs", "namenode"]
+    env_file: hadoop.env
+    environment:
+      ENSURE_NAMENODE_DIR: /data/nn
+    ports:
+      - "9870:9870"   # UI web do NameNode
+    volumes:
+      - hdfs-namenode:/data
+    restart: unless-stopped
+
+  datanode-norte:
+    <<: *datanode
+    hostname: datanode-norte
+    environment:
+      HDFS-SITE.XML_dfs.datanode.hostname: datanode-norte
+    volumes:
+      - hdfs-dn-norte:/data
+  datanode-centro:
+    <<: *datanode
+    hostname: datanode-centro
+    environment:
+      HDFS-SITE.XML_dfs.datanode.hostname: datanode-centro
+    volumes:
+      - hdfs-dn-centro:/data
+  datanode-sul:
+    <<: *datanode
+    hostname: datanode-sul
+    environment:
+      HDFS-SITE.XML_dfs.datanode.hostname: datanode-sul
+    volumes:
+      - hdfs-dn-sul:/data
+
+  # ---------------- CORBA: Naming Service + Central de Auditoria ----------------
+  naming:
+    build:
+      context: ../..
+      target: naming
+    image: scad/naming:dev
+    environment:
+      CORBA_HOST_ANUNCIADO: naming
+    volumes:
+      - naming-dados:/dados
+    restart: unless-stopped
+
+  central:
+    build:
+      context: ../..
+      target: central
+    image: scad/central:dev
+    environment:
+      CORBA_HOST_ANUNCIADO: central
+      CORBA_PORTA: 3700
+      CORBA_NAMING: naming:2809
+    depends_on: [naming]
+    restart: unless-stopped
+
+  # ---------------- Nós regionais ----------------
+  no-norte:
+    <<: *no
+    environment:
+      NO_REGIAO: NORTE
+      CORBA_HOST_ANUNCIADO: no-norte
+      CORBA_PORTA: 3701
+      CORBA_NAMING: naming:2809
+      HDFS_URI: hdfs://namenode:8020
+    ports: ["8081:8080"]
+  no-centro:
+    <<: *no
+    environment:
+      NO_REGIAO: CENTRO
+      CORBA_HOST_ANUNCIADO: no-centro
+      CORBA_PORTA: 3701
+      CORBA_NAMING: naming:2809
+      HDFS_URI: hdfs://namenode:8020
+    ports: ["8082:8080"]
+  no-sul:
+    <<: *no
+    environment:
+      NO_REGIAO: SUL
+      CORBA_HOST_ANUNCIADO: no-sul
+      CORBA_PORTA: 3701
+      CORBA_NAMING: naming:2809
+      HDFS_URI: hdfs://namenode:8020
+    ports: ["8083:8080"]
+
+volumes:
+  pg-norte:
+  pg-centro:
+  pg-sul:
+  pg-norte-replica:
+  pg-centro-replica:
+  pg-sul-replica:
+  hdfs-namenode:
+  hdfs-dn-norte:
+  hdfs-dn-centro:
+  hdfs-dn-sul:
+  naming-dados:

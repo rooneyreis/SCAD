@@ -1,0 +1,41 @@
+// Interface CORBA do SCAD: comunicação entre a Central de Auditoria e os agentes de stock regionais.
+module SCAD {
+
+  struct SaldoProduto {
+    string    produtoId;
+    string    armazemId;
+    long      quantidade;
+    long      minimo;
+    long      emEncomenda;
+    long long timestamp;      // hora corrigida (Berkeley), em ms desde a época
+  };
+  typedef sequence<SaldoProduto> ListaSaldos;
+
+  enum NivelAlerta { AVISO, CRITICO, RUPTURA };
+
+  struct AlertaStock {
+    string      alertaId;
+    string      produtoId;
+    string      armazemId;
+    long        quantidadeActual;
+    long        minimo;
+    NivelAlerta nivel;
+    long long   timestamp;
+  };
+
+  exception ProdutoInexistente { string produtoId; };
+
+  // Implementado por cada nó regional (NORTE, CENTRO, SUL).
+  interface AgenteStock {
+    SaldoProduto consultarSaldo(in string produtoId) raises (ProdutoInexistente);
+    ListaSaldos  consultarTodos();
+    long long    obterRelogio();                 // usado pelo mestre Berkeley
+    void         ajustarRelogio(in long long delta);
+  };
+
+  // Implementada pela Central de Auditoria (M1).
+  interface CentralAuditoria {
+    void        registarAgente(in string armazemId, in AgenteStock agente);
+    oneway void dispararAlerta(in AlertaStock alerta);
+  };
+};

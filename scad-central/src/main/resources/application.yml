@@ -1,0 +1,9 @@
+scad:
+  corba:
+    host-anunciado: ${CORBA_HOST_ANUNCIADO}
+    porta: ${CORBA_PORTA:3700}
+    naming: ${CORBA_NAMING}
+
+logging:
+  level:
+    org.jacorb: WARN
