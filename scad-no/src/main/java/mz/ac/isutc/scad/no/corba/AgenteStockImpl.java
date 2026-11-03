@@ -8,6 +8,7 @@ import mz.ac.isutc.scad.common.relogio.RelogioCorrigido;
 import mz.ac.isutc.scad.corba.AgenteStockPOA;
 import mz.ac.isutc.scad.corba.ProdutoInexistente;
 import mz.ac.isutc.scad.corba.SaldoProduto;
+import mz.ac.isutc.scad.no.relogio.RegistoAjustes;
 import mz.ac.isutc.scad.no.stock.RepositorioStock;
 import mz.ac.isutc.scad.no.stock.Stock;
 
@@ -22,10 +23,12 @@ public class AgenteStockImpl extends AgenteStockPOA {
 
     private final RepositorioStock stock;
     private final RelogioCorrigido relogio;
+    private final RegistoAjustes ajustes;
 
-    public AgenteStockImpl(RepositorioStock stock, RelogioCorrigido relogio) {
+    public AgenteStockImpl(RepositorioStock stock, RelogioCorrigido relogio, RegistoAjustes ajustes) {
         this.stock = stock;
         this.relogio = relogio;
+        this.ajustes = ajustes;
     }
 
     @Override
@@ -46,9 +49,8 @@ public class AgenteStockImpl extends AgenteStockPOA {
 
     @Override
     public void ajustarRelogio(long delta) {
-        relogio.ajustar(delta);
-        log.info("Relógio ajustado em {} ms pelo mestre Berkeley (desvio efectivo: {} ms)",
-                delta, relogio.desvioEfectivoMs());
+        RegistoAjustes.Ajuste a = ajustes.aplicar(delta, "Berkeley");
+        log.info("Berkeley: relógio ajustado em {} ms (desvio {} -> {} ms)", delta, a.antesMs(), a.depoisMs());
     }
 
     private SaldoProduto paraIdl(Stock s) {

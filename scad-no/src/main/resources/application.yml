@@ -35,6 +35,13 @@ scad:
       replica: ${PG_SUL_REPLICA:}
   relogio:
     desvio-simulado-ms: ${CLOCK_SKEW_MS:0}
+  # Pares do grupo (Ricart-Agrawala e detector de falhas): REGIAO=url,REGIAO=url,...
+  pares: ${SCAD_PARES:}
+  exclusao:
+    timeout-ms: ${SCAD_EXCLUSAO_TIMEOUT_MS:30000}
+  demo:
+    # Tempo extra dentro da secção crítica, para se ver a fila do Ricart-Agrawala no painel
+    demora-seccao-critica-ms: ${SCAD_DEMORA_SC_MS:2000}
 
 logging:
   level:

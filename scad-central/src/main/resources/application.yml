@@ -3,6 +3,11 @@ scad:
     host-anunciado: ${CORBA_HOST_ANUNCIADO}
     porta: ${CORBA_PORTA:3700}
     naming: ${CORBA_NAMING}
+  relogio:
+    desvio-simulado-ms: ${CLOCK_SKEW_MS:0}
+  berkeley:
+    intervalo-ms: ${BERKELEY_INTERVALO_MS:20000}
+    limite-ms: ${BERKELEY_LIMITE_MS:10000}
 
 logging:
   level:
