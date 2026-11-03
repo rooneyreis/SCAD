@@ -102,3 +102,105 @@ Os delegates são **mínimos**: suportam o CORBA definido por IDL (structs, sequ
 - **HDFS:** 3 DataNodes vivos; os ficheiros escritos por cada nó têm `Live_repl=3` (`hdfs fsck`).
 - **Postgres:** `pg_stat_replication` mostra `streaming` nos 3 primários; as réplicas têm `pg_is_in_recovery()=t` e vêem os dados escritos no primário.
 - **Memória (modo local, tudo num PC):** cerca de 2,1 GB no total (NameNode 345 MB, cada DataNode 250 MB, cada nó 200 MB, cada Postgres 25–50 MB).
+
+---
+
+## Fase 2 — Dados e fluxo base (saída de stock → alerta CORBA)
+
+### Modelo da base de dados distribuída
+
+```mermaid
+erDiagram
+    ARMAZEM ||--o{ STOCK : tem
+    PRODUTO ||--o{ STOCK : "é guardado em"
+    FORNECEDOR ||--o{ PRODUTO : fornece
+    STOCK ||--o{ MOVIMENTO_STOCK : regista
+    STOCK ||--o{ ALERTA : gera
+    ORDEM_COMPRA ||--|{ LINHA_ORDEM : "é repartida em"
+    ARMAZEM ||--o{ LINHA_ORDEM : recebe
+    FORNECEDOR ||--o{ ORDEM_COMPRA : recebe
+    PRODUTO ||--o{ ORDEM_COMPRA : "é encomendado em"
+```
+
+| Tabela | Distribuição | Justificação |
+|---|---|---|
+| `armazem`, `fornecedor`, `produto` | **replicada** (igual em todos os fragmentos) | catálogo pequeno e quase estático; lido em todas as operações locais |
+| `stock`, `movimento_stock`, `alerta` | **fragmentação horizontal** por região | cada armazém só altera o seu stock: escritas locais, sem coordenação |
+| `linha_ordem` | **fragmentação horizontal** por região | cada linha incrementa o `em_encomenda` *desse* armazém: tem de estar no mesmo fragmento que o seu `stock` |
+| `ordem_compra` | cabeçalho em **todos os fragmentos que participam** na ordem | o painel vê a ordem mesmo com um nó em baixo; dá ao 2PC um motivo real para tocar vários fragmentos |
+
+**O predicado de fragmentação é imposto pela própria BD.** `db/init/04-fragmento.sh` adiciona `CHECK (armazem_id = '<REGIÃO>')` a cada tabela fragmentada (teste: `fragmentoRecusaLinhasDeOutraRegiao`). O esquema (`02-esquema.sql`) e o catálogo (`03-catalogo.sql`) são os mesmos em todos os fragmentos; só o script de fragmento e o stock inicial (`db/dados/stock-<região>.sql`) dependem da região (`SCAD_REGIAO`).
+
+Restrições de integridade: `CHECK (quantidade >= 0)`, `em_encomenda >= 0`, `maximo > minimo`, `lote > 0`, e os enumerados (`tipo`, `estado`, `nivel`, `protocolo`) com `CHECK ... IN (...)`.
+
+### Fluxo (passos 1 e 2)
+
+```mermaid
+sequenceDiagram
+    participant P as Painel
+    participant N as Nó (região)
+    participant BD as Fragmento local (PostgreSQL)
+    participant C as Central de Auditoria (CORBA)
+    P->>N: POST /api/movimentos/saida
+    N->>BD: BEGIN
+    N->>BD: UPDATE stock ... WHERE quantidade >= q RETURNING *
+    N->>BD: INSERT movimento_stock (ts_lamport, ts_corrigido)
+    N->>BD: INSERT alerta (se o nível o exigir) — outbox
+    N->>BD: COMMIT
+    N-->>P: 201 (stock após, nível, alerta)
+    N->>C: _non_existent() (bidireccional: a Central está viva?)
+    N-)C: dispararAlerta (oneway)
+    N->>BD: UPDATE alerta SET enviado_em = ...
+```
+
+### Decisões
+
+| Decisão | Justificação |
+|---|---|
+| JDBC explícito (`JdbcTemplate`), sem JPA | O SQL fica visível e controlado. O 2PC (Fase 3) precisa de `PREPARE TRANSACTION` em ligações concretas. |
+| `FragmentosBd`: um pool Hikari por fragmento, com `initializationFailTimeout=-1` | O nó arranca mesmo com um fragmento em baixo; cada fragmento tem o seu `TransactionTemplate`. Os fragmentos sem endereço configurado são ignorados. |
+| Saída atómica: `UPDATE ... WHERE quantidade >= ? RETURNING *` | A verificação e a actualização são uma só instrução, por isso saídas concorrentes nunca deixam o stock negativo (teste: 20 pedidos concorrentes de 10 sobre 105 → exactamente 10 com sucesso). |
+| Níveis: RUPTURA (`q = 0`), CRITICO (`q + enc < min`), AVISO (`q + enc ≤ 1,2 × min`), NORMAL | O AVISO coincide com o "perto do mínimo" da regra de repartição; só o CRITICO activa a reposição (Fase 3). Usa aritmética inteira (`5·disp ≤ 6·min`) para evitar erros de vírgula flutuante. |
+| Alertas em **outbox** (tabela `alerta`, gravada na mesma transacção do movimento) | O alerta nunca se perde: se o nó cair depois do commit, o alerta continua na BD e é enviado quando o nó voltar. É também a "fila local" pedida para quando a Central cai. |
+| Um estado só gera um alerta (`ultimoAlertaDescreve`) | A verificação periódica (30 s) apanha estados que já existiam no arranque (ex.: FARINHA-25 no SUL), sem repetir alertas. |
+| Relógio de Lamport retomado a partir do maior `ts_lamport` gravado | Depois de um reinício, os carimbos do nó nunca recuam. |
+| Relógio corrigido = sistema + `CLOCK_SKEW_MS` + ajustes Berkeley | Simula desvios (NORTE +2500 ms, CENTRO −1800 ms, SUL +700 ms) sem mexer no relógio do sistema operativo. |
+| Erros HTTP em `problem+json` (RFC 9457) | 404 produto inexistente, 409 stock insuficiente, 422 armazém de outro fragmento, 400 validação, 503 BD indisponível. |
+| Estado do HDFS verificado em segundo plano (`MonitorHdfs`) | Com o NameNode inacessível, a verificação demora ~6 s, e o painel faz polling a cada segundo. |
+
+### Problema encontrado: `oneway` + IOR transitório = alertas perdidos em silêncio
+
+Num teste em que a Central foi parada e reiniciada, os alertas ficaram marcados como enviados mas **nunca chegaram**. Causa:
+1. O RootPOA é *transient*: o *object key* da Central muda a cada arranque.
+2. O nó ainda tinha a referência antiga e enviou o alerta antes de o registo ser refeito.
+3. `dispararAlerta` é `oneway`: o servidor não pode responder `OBJECT_NOT_EXIST`, por isso o cliente não recebe erro.
+
+Solução em três camadas:
+1. **POA persistente** (`LifespanPolicy PERSISTENT` + `IdAssignmentPolicy USER_ID`), com porta e `jacorb.implname` fixos: os IORs da Central e dos agentes **não mudam entre reinícios**.
+2. **`_non_existent()` antes do oneway**: uma operação CORBA padrão com resposta, que confirma que o processo está vivo e tem o objecto activo. Só depois se marca o alerta como enviado.
+3. **Deduplicação na Central** por `alertaId`: um reenvio nunca é contado duas vezes (entrega *at-least-once* + idempotência ⇒ efeito *exactly-once*).
+
+Evidência: com a Central parada, ficaram 2 alertas pendentes na fila local. A Central foi reiniciada às 22:55:51.6, e os 2 alertas chegaram às 22:55:52, **antes** de o agente se ter voltado a registar (22:56:01). A referência antiga continuou válida.
+
+### Cenários de demonstração nos dados iniciais
+
+| Produto (lote) | NORTE | CENTRO | SUL | Para que serve |
+|---|---|---|---|---|
+| ARROZ-25 (500) | 105 / mín 100 | 104 / mín 100 | 300 | **Pico simultâneo**: uma saída de 10 no NORTE e no CENTRO deixa os dois abaixo do mínimo |
+| FARINHA-25 (400) | 200 | 90 / mín 80 (perto) | **70 / mín 80** | já abaixo do mínimo no arranque; repartição com prioridade 2 (CENTRO perto do mínimo) |
+| ACUCAR-10 (400) | 180 | 160 | 85 / mín 80 (perto) | alerta AVISO no arranque |
+| OLEO-5 (600) | 100 / mín 60 | 150 | 140 | saída de 45 no NORTE → prioridade 3 e excesso para o armazém que disparou |
+| FEIJAO-10, SABAO-BARRA | normais | | | movimentos sem alerta |
+
+### Evidência de testes (Fase 2)
+
+- `mvn verify`: 27 testes, todos verdes.
+  - `RelogioLamportTest` (5), `RelogioCorrigidoTest` (2) e `StockTest` (11 casos de nível, condição de reposição e necessidade).
+  - `ServicoMovimentosIT` (8), com **PostgreSQL real via Testcontainers, inicializado com os scripts de produção**: carimbos de Lamport e hora corrigida; alerta CRITICO entregue; fila local com a Central em baixo (reenvio pela ordem de emissão); stock insuficiente sem efeitos; produto inexistente e armazém de outro fragmento rejeitados; predicado de fragmentação imposto pela BD; 20 saídas concorrentes; verificação periódica sem alertas repetidos.
+- Stack local: os alertas iniciais esperados chegam à Central (FARINHA-25 CRITICO no SUL e 4 AVISO). A API devolve 201/409/422/400 correctamente, e os acentos (UTF-8) são gravados sem problemas.
+
+### Teste de fumo com 2 máquinas (preparado)
+
+Fica em `deploy/fumo/` (ver o README dessa pasta). Ao validar a parte da M1 num só PC, descobriram-se dois requisitos de ambiente, agora documentados:
+- Com o **WSL em modo `mirrored`** (`.wslconfig`), o Docker Desktop não publica as portas na placa de rede: elas só ficam acessíveis em `localhost`. É preciso o modo NAT (o padrão).
+- Um **PostgreSQL instalado no Windows** ocupa a porta 5432 em `0.0.0.0` e fica com as ligações ao IP da máquina. Tem de ser parado durante a demonstração.

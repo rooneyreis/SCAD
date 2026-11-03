@@ -28,6 +28,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <jacorb.version>3.9</jacorb.version>
         <hadoop.version>3.4.1</hadoop.version>
+        <!-- 1.21.x negocia correctamente a versão da API com o Docker Engine 29 -->
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
 
     <dependencyManagement>

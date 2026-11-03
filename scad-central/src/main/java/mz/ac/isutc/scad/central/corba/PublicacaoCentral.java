@@ -23,7 +23,7 @@ public class PublicacaoCentral {
 
     public PublicacaoCentral(ServidorCorba servidor, CentralAuditoriaImpl central) {
         this.servidor = servidor;
-        this.referencia = servidor.activar(central);
+        this.referencia = servidor.activar(ServicoNomes.CENTRAL_AUDITORIA, central);
     }
 
     @Scheduled(initialDelay = 0, fixedDelay = 10_000)

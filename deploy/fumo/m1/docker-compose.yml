@@ -1,0 +1,116 @@
+# TESTE DE FUMO com 2 máquinas — M1 (NORTE)
+# Valida cedo o que só falha entre PCs reais: IORs CORBA com o IP da máquina, HDFS com um
+# DataNode noutra máquina e replicação PostgreSQL entre PCs.
+#
+#   copiar .env.exemplo para .env e preencher os IPs; depois:
+#   docker compose up -d --build
+name: scad-fumo-m1
+
+x-hdfs-env: &hdfs-env
+  CORE-SITE.XML_fs.defaultFS: hdfs://${NORTE_IP}:8020
+  HDFS-SITE.XML_dfs.replication: "2"
+  HDFS-SITE.XML_dfs.permissions.enabled: "false"
+  HDFS-SITE.XML_dfs.namenode.name.dir: /data/nn
+  HDFS-SITE.XML_dfs.datanode.data.dir: /data/dn
+  HDFS-SITE.XML_dfs.namenode.rpc-bind-host: 0.0.0.0
+  HDFS-SITE.XML_dfs.namenode.http-bind-host: 0.0.0.0
+  HDFS-SITE.XML_dfs.namenode.datanode.registration.ip-hostname-check: "false"
+  HDFS-SITE.XML_dfs.client.use.datanode.hostname: "true"
+  HDFS-SITE.XML_dfs.datanode.use.datanode.hostname: "true"
+  HDFS-SITE.XML_dfs.namenode.heartbeat.recheck-interval: "30000"
+  HDFS-SITE.XML_dfs.heartbeat.interval: "3"
+  HADOOP_HEAPSIZE_MAX: 384m
+
+services:
+
+  # ---- PostgreSQL: fragmento NORTE (primário; a réplica fica na M2) ----
+  pg-norte:
+    image: postgres:16
+    command: >
+      postgres -c wal_level=replica -c max_wal_senders=10 -c max_replication_slots=10
+      -c max_prepared_transactions=50 -c hot_standby=on
+    environment:
+      POSTGRES_USER: scad
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: scad
+      REPLICACAO_PASSWORD: ${REPLICACAO_PASSWORD}
+      SCAD_REGIAO: NORTE
+    ports: ["5432:5432"]
+    volumes:
+      - pg-norte:/var/lib/postgresql/data
+      - ../../../db/init:/docker-entrypoint-initdb.d:ro
+      - ../../../db/dados:/scad-dados:ro
+    restart: unless-stopped
+
+  # ---- HDFS: NameNode + DataNode desta máquina ----
+  namenode:
+    image: apache/hadoop:3.4.1
+    command: ["hdfs", "namenode"]
+    environment:
+      <<: *hdfs-env
+      ENSURE_NAMENODE_DIR: /data/nn
+    ports: ["8020:8020", "9870:9870"]
+    volumes: [hdfs-namenode:/data]
+    restart: unless-stopped
+
+  datanode:
+    image: apache/hadoop:3.4.1
+    command: ["hdfs", "datanode"]
+    environment:
+      <<: *hdfs-env
+      # O DataNode anuncia o IP da máquina Windows (não o IP interno do container)
+      HDFS-SITE.XML_dfs.datanode.hostname: ${HOST_IP}
+      HDFS-SITE.XML_dfs.datanode.http.address: 0.0.0.0:9864
+      HDFS-SITE.XML_dfs.datanode.address: 0.0.0.0:9866
+      HDFS-SITE.XML_dfs.datanode.ipc.address: 0.0.0.0:9867
+    ports: ["9864:9864", "9866:9866", "9867:9867"]
+    volumes: [hdfs-datanode:/data]
+    depends_on: [namenode]
+    restart: unless-stopped
+
+  # ---- CORBA: Naming Service + Central de Auditoria ----
+  naming:
+    build: { context: ../../.., target: naming }
+    image: scad/naming:dev
+    environment:
+      CORBA_HOST_ANUNCIADO: ${HOST_IP}
+    ports: ["2809:2809"]
+    volumes: [naming-dados:/dados]
+    restart: unless-stopped
+
+  central:
+    build: { context: ../../.., target: central }
+    image: scad/central:dev
+    environment:
+      CORBA_HOST_ANUNCIADO: ${HOST_IP}
+      CORBA_PORTA: 3700
+      CORBA_NAMING: ${NORTE_IP}:2809
+    ports: ["3700:3700"]
+    depends_on: [naming]
+    restart: unless-stopped
+
+  # ---- Nó NORTE ----
+  no-norte:
+    build: { context: ../../.., target: no }
+    image: scad/no:dev
+    environment:
+      NO_REGIAO: NORTE
+      CORBA_HOST_ANUNCIADO: ${HOST_IP}
+      CORBA_PORTA: 3701
+      CORBA_NAMING: ${NORTE_IP}:2809
+      HDFS_URI: hdfs://${NORTE_IP}:8020
+      HDFS_REPLICACAO: 2
+      PG_PASSWORD: ${PG_PASSWORD}
+      PG_NORTE_PRIMARIO: ${NORTE_IP}:5432
+      PG_NORTE_REPLICA: ${CENTRO_IP}:5433
+      PG_CENTRO_PRIMARIO: ${CENTRO_IP}:5432
+      CLOCK_SKEW_MS: 2500
+    ports: ["8080:8080", "3701:3701"]
+    depends_on: [naming, pg-norte]
+    restart: unless-stopped
+
+volumes:
+  pg-norte:
+  hdfs-namenode:
+  hdfs-datanode:
+  naming-dados:

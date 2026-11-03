@@ -1,0 +1,88 @@
+# TESTE DE FUMO com 2 máquinas — M2 (CENTRO)
+#
+#   copiar .env.exemplo para .env e preencher os IPs; depois:
+#   docker compose up -d --build      (só depois de a M1 estar a correr)
+name: scad-fumo-m2
+
+services:
+
+  # ---- PostgreSQL: fragmento CENTRO (primário) ----
+  pg-centro:
+    image: postgres:16
+    command: >
+      postgres -c wal_level=replica -c max_wal_senders=10 -c max_replication_slots=10
+      -c max_prepared_transactions=50 -c hot_standby=on
+    environment:
+      POSTGRES_USER: scad
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: scad
+      REPLICACAO_PASSWORD: ${REPLICACAO_PASSWORD}
+      SCAD_REGIAO: CENTRO
+    ports: ["5432:5432"]
+    volumes:
+      - pg-centro:/var/lib/postgresql/data
+      - ../../../db/init:/docker-entrypoint-initdb.d:ro
+      - ../../../db/dados:/scad-dados:ro
+    restart: unless-stopped
+
+  # ---- PostgreSQL: réplica do fragmento NORTE (o primário está na M1) ----
+  pg-norte-replica:
+    image: postgres:16
+    user: postgres
+    entrypoint: ["bash", "/scripts/iniciar-replica.sh"]
+    environment:
+      PRIMARIO_HOST: ${NORTE_IP}
+      PRIMARIO_PORTA: 5432
+      SLOT_REPLICACAO: replica_norte
+      REPLICACAO_PASSWORD: ${REPLICACAO_PASSWORD}
+    ports: ["5433:5432"]
+    volumes:
+      - pg-norte-replica:/var/lib/postgresql/data
+      - ../../../db/replicacao:/scripts:ro
+    restart: unless-stopped
+
+  # ---- HDFS: DataNode desta máquina (o NameNode está na M1) ----
+  datanode:
+    image: apache/hadoop:3.4.1
+    command: ["hdfs", "datanode"]
+    environment:
+      CORE-SITE.XML_fs.defaultFS: hdfs://${NORTE_IP}:8020
+      HDFS-SITE.XML_dfs.replication: "2"
+      HDFS-SITE.XML_dfs.permissions.enabled: "false"
+      HDFS-SITE.XML_dfs.datanode.data.dir: /data/dn
+      HDFS-SITE.XML_dfs.client.use.datanode.hostname: "true"
+      HDFS-SITE.XML_dfs.datanode.use.datanode.hostname: "true"
+      HDFS-SITE.XML_dfs.heartbeat.interval: "3"
+      HDFS-SITE.XML_dfs.datanode.hostname: ${HOST_IP}
+      HDFS-SITE.XML_dfs.datanode.http.address: 0.0.0.0:9864
+      HDFS-SITE.XML_dfs.datanode.address: 0.0.0.0:9866
+      HDFS-SITE.XML_dfs.datanode.ipc.address: 0.0.0.0:9867
+      HADOOP_HEAPSIZE_MAX: 384m
+    ports: ["9864:9864", "9866:9866", "9867:9867"]
+    volumes: [hdfs-datanode:/data]
+    restart: unless-stopped
+
+  # ---- Nó CENTRO ----
+  no-centro:
+    build: { context: ../../.., target: no }
+    image: scad/no:dev
+    environment:
+      NO_REGIAO: CENTRO
+      CORBA_HOST_ANUNCIADO: ${HOST_IP}
+      CORBA_PORTA: 3701
+      CORBA_NAMING: ${NORTE_IP}:2809
+      HDFS_URI: hdfs://${NORTE_IP}:8020
+      HDFS_REPLICACAO: 2
+      PG_PASSWORD: ${PG_PASSWORD}
+      PG_NORTE_PRIMARIO: ${NORTE_IP}:5432
+      PG_NORTE_REPLICA: ${CENTRO_IP}:5433
+      PG_CENTRO_PRIMARIO: ${CENTRO_IP}:5432
+      CLOCK_SKEW_MS: -1800
+    ports: ["8080:8080", "3701:3701"]
+    depends_on: [pg-centro]
+    restart: unless-stopped
+
+volumes:
+  pg-centro:
+  pg-norte-replica:
+  hdfs-datanode:

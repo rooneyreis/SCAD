@@ -36,7 +36,7 @@ class ServidorCorbaTest {
 
     @Test
     void chamadaRemotaDevolveSaldoEPropagaExcepcao() throws Exception {
-        String ior = servidor.orb().object_to_string(servidor.activar(new AgenteFalso()));
+        String ior = servidor.orb().object_to_string(servidor.activar("AgenteFalso", new AgenteFalso()));
 
         // O cliente só conhece o IOR em texto, como aconteceria entre containers
         AgenteStock agente = AgenteStockHelper.narrow(cliente.orb().string_to_object(ior));

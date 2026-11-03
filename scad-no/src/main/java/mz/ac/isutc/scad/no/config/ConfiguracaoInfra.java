@@ -20,6 +20,6 @@ public class ConfiguracaoInfra {
 
     @Bean(destroyMethod = "close")
     ClienteHdfs clienteHdfs(PropriedadesNo props) {
-        return new ClienteHdfs(props.hdfs().uri(), props.hdfs().utilizador());
+        return new ClienteHdfs(props.hdfs().uri(), props.hdfs().utilizador(), props.hdfs().replicacao());
     }
 }

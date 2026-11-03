@@ -1,6 +1,14 @@
 server:
   port: 8080
 
+spring:
+  autoconfigure:
+    # As ligações à BD são geridas por FragmentosBd (uma por fragmento), não por uma DataSource única
+    exclude: org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
 scad:
   regiao: ${NO_REGIAO:NORTE}
   corba:
@@ -10,8 +18,26 @@ scad:
   hdfs:
     uri: ${HDFS_URI}
     utilizador: ${HDFS_UTILIZADOR:scad}
+    replicacao: ${HDFS_REPLICACAO:3}
+  bd:
+    nome: ${PG_BD:scad}
+    utilizador: ${PG_UTILIZADOR:scad}
+    password: ${PG_PASSWORD:scad}
+  fragmentos:
+    "[NORTE]":
+      primario: ${PG_NORTE_PRIMARIO:}
+      replica: ${PG_NORTE_REPLICA:}
+    "[CENTRO]":
+      primario: ${PG_CENTRO_PRIMARIO:}
+      replica: ${PG_CENTRO_REPLICA:}
+    "[SUL]":
+      primario: ${PG_SUL_PRIMARIO:}
+      replica: ${PG_SUL_REPLICA:}
+  relogio:
+    desvio-simulado-ms: ${CLOCK_SKEW_MS:0}
 
 logging:
   level:
     org.jacorb: WARN
     org.apache.hadoop: WARN
+    com.zaxxer.hikari: WARN

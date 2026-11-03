@@ -14,6 +14,7 @@ import mz.ac.isutc.scad.corba.AgenteStockHelper;
 import mz.ac.isutc.scad.corba.AlertaStock;
 import mz.ac.isutc.scad.corba.CentralAuditoria;
 import mz.ac.isutc.scad.corba.CentralAuditoriaHelper;
+import mz.ac.isutc.scad.no.agente.CanalAlertas;
 import mz.ac.isutc.scad.no.config.PropriedadesNo;
 
 /**
@@ -23,7 +24,7 @@ import mz.ac.isutc.scad.no.config.PropriedadesNo;
  * reiniciarem, ou se este nó reiniciar, o registo é refeito sem intervenção manual.
  */
 @Component
-public class LigacaoCentral {
+public class LigacaoCentral implements CanalAlertas {
 
     private static final Logger log = LoggerFactory.getLogger(LigacaoCentral.class);
 
@@ -38,7 +39,7 @@ public class LigacaoCentral {
     public LigacaoCentral(PropriedadesNo props, ServidorCorba servidor, AgenteStockImpl agente) {
         this.regiao = props.regiao();
         this.servidor = servidor;
-        this.referenciaAgente = AgenteStockHelper.narrow(servidor.activar(agente));
+        this.referenciaAgente = AgenteStockHelper.narrow(servidor.activar(ServicoNomes.nomeAgente(regiao), agente));
     }
 
     @Scheduled(initialDelay = 2_000, fixedDelay = 10_000)
@@ -63,15 +64,26 @@ public class LigacaoCentral {
     }
 
     /**
-     * Envia um alerta (oneway). Devolve false se a Central não estiver acessível.
-     * A fila local de alertas pendentes é implementada na Fase 2.
+     * Envia um alerta à Central. Devolve false se a Central não estiver acessível.
+     *
+     * <p>{@code dispararAlerta} é {@code oneway}: o servidor não responde, por isso um envio para
+     * um processo que não tem o objecto activo "parece" bem-sucedido e o alerta perde-se em silêncio.
+     * Antes do envio fazemos {@code _non_existent()}, uma operação CORBA padrão <i>com</i> resposta,
+     * que confirma que a Central está viva e tem o objecto activo. Um eventual duplicado
+     * (alerta reenviado) é descartado pela Central através do {@code alertaId}.
      */
+    @Override
     public boolean enviarAlerta(AlertaStock alerta) {
         CentralAuditoria c = central;
         if (c == null) {
             return false;
         }
         try {
+            if (c._non_existent()) {
+                log.warn("[{}] A referência da Central já não é válida; aguarda novo registo", regiao);
+                centralDisponivel = false;
+                return false;
+            }
             c.dispararAlerta(alerta);
             return true;
         } catch (RuntimeException e) {

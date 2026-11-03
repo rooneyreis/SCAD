@@ -2,7 +2,14 @@
 # Os serviços falam entre si pelos nomes da rede Docker; só se publicam as portas úteis no PC.
 #
 #   docker compose -f deploy/local/docker-compose.yml up -d --build
+#   (para recriar as bases de dados com os dados iniciais: "down -v" antes do "up")
 name: scad-local
+
+x-pg-env: &pg-env
+  POSTGRES_USER: scad
+  POSTGRES_PASSWORD: ${PG_PASSWORD:-scad}
+  POSTGRES_DB: scad
+  REPLICACAO_PASSWORD: ${REPLICACAO_PASSWORD:-replica}
 
 x-pg-primario: &pg-primario
   image: postgres:16
@@ -13,11 +20,6 @@ x-pg-primario: &pg-primario
     -c max_replication_slots=10
     -c max_prepared_transactions=50
     -c hot_standby=on
-  environment:
-    POSTGRES_USER: scad
-    POSTGRES_PASSWORD: ${PG_PASSWORD:-scad}
-    POSTGRES_DB: scad
-    REPLICACAO_PASSWORD: ${REPLICACAO_PASSWORD:-replica}
   healthcheck:
     test: ["CMD-SHELL", "pg_isready -U scad -d scad"]
     interval: 3s
@@ -38,12 +40,25 @@ x-datanode: &datanode
   depends_on: [namenode]
   restart: unless-stopped
 
+# Variáveis comuns aos 3 nós regionais
+x-no-env: &no-env
+  CORBA_PORTA: 3701
+  CORBA_NAMING: naming:2809
+  HDFS_URI: hdfs://namenode:8020
+  PG_PASSWORD: ${PG_PASSWORD:-scad}
+  PG_NORTE_PRIMARIO: pg-norte:5432
+  PG_NORTE_REPLICA: pg-norte-replica:5432
+  PG_CENTRO_PRIMARIO: pg-centro:5432
+  PG_CENTRO_REPLICA: pg-centro-replica:5432
+  PG_SUL_PRIMARIO: pg-sul:5432
+  PG_SUL_REPLICA: pg-sul-replica:5432
+
 x-no: &no
   build:
     context: ../..
     target: no
   image: scad/no:dev
-  depends_on: [naming]
+  depends_on: [naming, pg-norte, pg-centro, pg-sul]
   restart: unless-stopped
 
 services:
@@ -51,19 +66,25 @@ services:
   # ---------------- PostgreSQL: 3 fragmentos (primários) + réplicas em anel ----------------
   pg-norte:
     <<: *pg-primario
+    environment: { <<: *pg-env, SCAD_REGIAO: NORTE }
     volumes:
       - pg-norte:/var/lib/postgresql/data
-      - ../../db/replicacao/01-utilizador-replicacao.sh:/docker-entrypoint-initdb.d/01-utilizador-replicacao.sh:ro
+      - ../../db/init:/docker-entrypoint-initdb.d:ro
+      - ../../db/dados:/scad-dados:ro
   pg-centro:
     <<: *pg-primario
+    environment: { <<: *pg-env, SCAD_REGIAO: CENTRO }
     volumes:
       - pg-centro:/var/lib/postgresql/data
-      - ../../db/replicacao/01-utilizador-replicacao.sh:/docker-entrypoint-initdb.d/01-utilizador-replicacao.sh:ro
+      - ../../db/init:/docker-entrypoint-initdb.d:ro
+      - ../../db/dados:/scad-dados:ro
   pg-sul:
     <<: *pg-primario
+    environment: { <<: *pg-env, SCAD_REGIAO: SUL }
     volumes:
       - pg-sul:/var/lib/postgresql/data
-      - ../../db/replicacao/01-utilizador-replicacao.sh:/docker-entrypoint-initdb.d/01-utilizador-replicacao.sh:ro
+      - ../../db/init:/docker-entrypoint-initdb.d:ro
+      - ../../db/dados:/scad-dados:ro
 
   pg-norte-replica:
     <<: *pg-replica
@@ -162,33 +183,18 @@ services:
     depends_on: [naming]
     restart: unless-stopped
 
-  # ---------------- Nós regionais ----------------
+  # ---------------- Nós regionais (desvios de relógio simulados diferentes) ----------------
   no-norte:
     <<: *no
-    environment:
-      NO_REGIAO: NORTE
-      CORBA_HOST_ANUNCIADO: no-norte
-      CORBA_PORTA: 3701
-      CORBA_NAMING: naming:2809
-      HDFS_URI: hdfs://namenode:8020
+    environment: { <<: *no-env, NO_REGIAO: NORTE, CORBA_HOST_ANUNCIADO: no-norte, CLOCK_SKEW_MS: 2500 }
     ports: ["8081:8080"]
   no-centro:
     <<: *no
-    environment:
-      NO_REGIAO: CENTRO
-      CORBA_HOST_ANUNCIADO: no-centro
-      CORBA_PORTA: 3701
-      CORBA_NAMING: naming:2809
-      HDFS_URI: hdfs://namenode:8020
+    environment: { <<: *no-env, NO_REGIAO: CENTRO, CORBA_HOST_ANUNCIADO: no-centro, CLOCK_SKEW_MS: -1800 }
     ports: ["8082:8080"]
   no-sul:
     <<: *no
-    environment:
-      NO_REGIAO: SUL
-      CORBA_HOST_ANUNCIADO: no-sul
-      CORBA_PORTA: 3701
-      CORBA_NAMING: naming:2809
-      HDFS_URI: hdfs://namenode:8020
+    environment: { <<: *no-env, NO_REGIAO: SUL, CORBA_HOST_ANUNCIADO: no-sul, CLOCK_SKEW_MS: 700 }
     ports: ["8083:8080"]
 
 volumes:

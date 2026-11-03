@@ -23,11 +23,11 @@ public final class ClienteHdfs implements Closeable {
 
     private final FileSystem fs;
 
-    public ClienteHdfs(String uri, String utilizador) {
+    public ClienteHdfs(String uri, String utilizador, int replicacao) {
         Configuration conf = new Configuration();
         conf.set("fs.defaultFS", uri);
         conf.setBoolean("dfs.client.use.datanode.hostname", true);
-        conf.setInt("dfs.replication", 3);
+        conf.setInt("dfs.replication", replicacao);
         // Com apenas 3 DataNodes não há substituto no pipeline: se um cair, continua com os restantes
         conf.set("dfs.client.block.write.replace-datanode-on-failure.policy", "NEVER");
         // Falhar depressa quando o NameNode está em baixo (a fila local trata do resto)
