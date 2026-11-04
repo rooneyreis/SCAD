@@ -8,7 +8,7 @@ INSERT INTO armazem (id, nome, cidade) VALUES
 INSERT INTO fornecedor (id, nome, protocolo, endpoint) VALUES
     ('GRAO-DOURADO', 'Grão Dourado, Lda',              'REST', '/api/v1/ordens'),
     ('DOCE-VALE',    'Doce Vale Açúcares, Lda',        'REST', '/api/v1/ordens'),
-    ('OLEOS-LIMPOPO','Saboaria e Óleos do Limpopo, SA','SOAP', '/ws');
+    ('OLEOS-LIMPOPO','Saboaria e Óleos do Limpopo, SA','SOAP', '/ws/fornecedor');
 
 INSERT INTO produto (id, nome, unidade, fornecedor_id, lote) VALUES
     ('ARROZ-25',    'Arroz 25 kg',              'saco',   'GRAO-DOURADO',  500),

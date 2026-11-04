@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import mz.ac.isutc.scad.no.bd.FragmentosBd;
 import mz.ac.isutc.scad.no.failover.MonitorFailover;
+import mz.ac.isutc.scad.no.fornecedores.GatewayFornecedores;
 import mz.ac.isutc.scad.no.reposicao.ServicoReposicao;
 import mz.ac.isutc.scad.no.transaccoes.Coordenador2PC;
 import mz.ac.isutc.scad.no.transaccoes.Cronologia2PC;
@@ -24,13 +25,21 @@ public class ControladorMonitor {
     private final FragmentosBd fragmentos;
     private final MonitorFailover failover;
     private final ServicoReposicao reposicao;
+    private final GatewayFornecedores gateway;
 
     public ControladorMonitor(Coordenador2PC coordenador, FragmentosBd fragmentos, MonitorFailover failover,
-                              ServicoReposicao reposicao) {
+                              ServicoReposicao reposicao, GatewayFornecedores gateway) {
         this.coordenador = coordenador;
         this.fragmentos = fragmentos;
         this.failover = failover;
         this.reposicao = reposicao;
+        this.gateway = gateway;
+    }
+
+    /** Tentativas de envio aos fornecedores feitas por este nó. */
+    @GetMapping("/fornecedores/eventos")
+    public List<String> eventosFornecedores() {
+        return gateway.eventos();
     }
 
     /** Cronologias dos 2PC coordenados por este nó (mais recentes primeiro). */

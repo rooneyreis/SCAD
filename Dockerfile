@@ -26,6 +26,12 @@ COPY --from=build /src/scad-central/target/app.jar app.jar
 EXPOSE 3700
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -cp 'app.jar:lib/*' mz.ac.isutc.scad.central.AplicacaoCentral"]
 
+FROM base AS fornecedor
+COPY --from=build /src/fornecedor-mock/target/lib/ lib/
+COPY --from=build /src/fornecedor-mock/target/app.jar app.jar
+EXPOSE 8090
+ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -cp 'app.jar:lib/*' mz.ac.isutc.scad.fornecedor.mock.AplicacaoFornecedor"]
+
 # Naming Service do JacORB, numa porta fixa e com o endereço anunciado configurável.
 # db_dir torna os registos persistentes entre reinícios.
 FROM base AS naming

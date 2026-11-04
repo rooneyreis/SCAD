@@ -21,6 +21,8 @@
         <module>scad-common</module>
         <module>scad-no</module>
         <module>scad-central</module>
+        <module>fornecedor-contrato</module>
+        <module>fornecedor-mock</module>
     </modules>
 
     <properties>
@@ -30,6 +32,7 @@
         <hadoop.version>3.4.1</hadoop.version>
         <!-- 1.21.x negocia correctamente a versão da API com o Docker Engine 29 -->
         <testcontainers.version>1.21.4</testcontainers.version>
+        <cxf.version>4.0.11</cxf.version>
     </properties>
 
     <dependencyManagement>
@@ -38,6 +41,27 @@
                 <groupId>mz.ac.isutc.scad</groupId>
                 <artifactId>scad-common</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>mz.ac.isutc.scad</groupId>
+                <artifactId>fornecedor-contrato</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <!-- SOAP (JAX-WS) com Apache CXF -->
+            <dependency>
+                <groupId>org.apache.cxf</groupId>
+                <artifactId>cxf-spring-boot-starter-jaxws</artifactId>
+                <version>${cxf.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.cxf</groupId>
+                <artifactId>cxf-rt-frontend-jaxws</artifactId>
+                <version>${cxf.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.cxf</groupId>
+                <artifactId>cxf-rt-transports-http</artifactId>
+                <version>${cxf.version}</version>
             </dependency>
             <!-- CORBA: o JDK 11+ já não traz org.omg.*; vem do jacorb-omgapi -->
             <dependency>

@@ -20,8 +20,21 @@
             <artifactId>scad-common</artifactId>
         </dependency>
         <dependency>
+            <groupId>mz.ac.isutc.scad</groupId>
+            <artifactId>fornecedor-contrato</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <!-- Cliente SOAP (JAX-WS) -->
+        <dependency>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-rt-frontend-jaxws</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-rt-transports-http</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

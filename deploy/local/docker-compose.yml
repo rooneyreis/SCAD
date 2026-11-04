@@ -52,6 +52,7 @@ x-no-env: &no-env
   PG_CENTRO_REPLICA: pg-centro-replica:5432
   PG_SUL_PRIMARIO: pg-sul:5432
   PG_SUL_REPLICA: pg-sul-replica:5432
+  FORNECEDOR_URL: http://fornecedor-mock:8090
   SCAD_PARES: NORTE=http://no-norte:8080,CENTRO=http://no-centro:8080,SUL=http://no-sul:8080
 
 x-no: &no
@@ -183,6 +184,15 @@ services:
       CORBA_NAMING: naming:2809
       BERKELEY_INTERVALO_MS: 20000
     depends_on: [naming]
+    restart: unless-stopped
+
+  # ---------------- Fornecedor simulado (REST + SOAP) ----------------
+  fornecedor-mock:
+    build:
+      context: ../..
+      target: fornecedor
+    image: scad/fornecedor:dev
+    ports: ["8090:8090"]
     restart: unless-stopped
 
   # ---------------- Nós regionais (desvios de relógio simulados diferentes) ----------------

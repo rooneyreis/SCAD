@@ -39,6 +39,8 @@ scad:
   pares: ${SCAD_PARES:}
   exclusao:
     timeout-ms: ${SCAD_EXCLUSAO_TIMEOUT_MS:30000}
+  fornecedores:
+    url-base: ${FORNECEDOR_URL:http://fornecedor-mock:8090}
   demo:
     # Tempo extra dentro da secção crítica, para se ver a fila do Ricart-Agrawala no painel
     demora-seccao-critica-ms: ${SCAD_DEMORA_SC_MS:2000}

@@ -93,13 +93,19 @@ public class RepositorioOrdens {
         return Optional.ofNullable(ordem).map(o -> o.comLinhas(linhas));
     }
 
-    /** Ordens à espera de envio ao fornecedor há mais de {@code segundos}. */
-    public List<String> pendentesDeEnvio(int segundos) {
+    /**
+     * Ordens à espera de envio ao fornecedor: as coordenadas por este nó há mais de 10 s, e
+     * as de qualquer coordenador há mais de 60 s (o coordenador pode ter morrido). Um envio
+     * repetido é inofensivo, porque o fornecedor é idempotente.
+     */
+    public List<String> pendentesDeEnvio() {
         return fragmentos.jdbcLocal().queryForList("""
                 SELECT id FROM ordem_compra
-                 WHERE estado = 'PENDENTE_ENVIO' AND actualizado_em < now() - make_interval(secs => ?)
+                 WHERE estado = 'PENDENTE_ENVIO'
+                   AND ((coordenador = ? AND actualizado_em < now() - interval '10 seconds')
+                        OR actualizado_em < now() - interval '60 seconds')
                  ORDER BY ts_lamport
-                """, String.class, segundos);
+                """, String.class, fragmentos.regiaoLocal());
     }
 
     /** Durante um 2PC os fragmentos podem estar momentaneamente diferentes: mostra-se o estado mais avançado. */
