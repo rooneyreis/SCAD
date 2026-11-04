@@ -11,7 +11,7 @@
 ```powershell
 docker compose -f deploy/local/docker-compose.yml up -d --build
 $s = @{ armazemId='NORTE'; produtoId='ARROZ-25'; quantidade=10; motivo='Venda' } | ConvertTo-Json
-Invoke-RestMethod http://localhost:8081/api/movimentos/saida -Method Post -Body $s -ContentType 'application/json'
+Invoke-RestMethod http://localhost:18081/api/movimentos/saida -Method Post -Body $s -ContentType 'application/json'
 docker compose -f deploy/local/docker-compose.yml logs central | Select-String ALERTA
 ```
 Testes automáticos: ver o README (`mvn verify`; 27 testes).

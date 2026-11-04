@@ -1,121 +1,142 @@
 import React, { useState } from 'react';
+import { ArrowRight, CheckCircle2, Clock, Database, GitCommitHorizontal, Hourglass, KeyRound, Lock,
+  ServerCrash, Timer, XCircle } from 'lucide-react';
 import { REGIOES, deTodosOsNos, paraNo } from '../api.js';
 import { usePolling } from '../usePolling.js';
+import { hora } from '../tema.js';
+import { GraficoRelogios } from '../componentes/Graficos.jsx';
 
-const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString('pt-PT', { hour12: false }) : '');
-// "2026-11-04T00:16:34.123Z  texto" -> "02:16:34  texto" (hora local, como no resto do painel)
+// "2026-11-04T00:16:34.123Z  texto" -> "02:16:34  texto" (hora local)
 const curto = (linha) => {
   const m = linha.match(/^(\S+Z)\s+(.*)$/s);
   return m ? `${hora(m[1])}  ${m[2]}` : linha;
 };
 
-function ExclusaoMutua({ dados }) {
+/** Fila da exclusão mútua: para cada recurso, quem está DENTRO, quem está À ESPERA e os OKs adiados. */
+function FilaExclusao({ dados }) {
+  const recursos = new Set();
+  REGIOES.forEach((r) => dados && dados[r] && dados[r].recursos.forEach((x) => recursos.add(x.recurso)));
+  const estadoDe = (r, recurso) => dados && dados[r] && dados[r].recursos.find((x) => x.recurso === recurso);
+  const activos = [...recursos].filter((rec) => REGIOES.some((r) => {
+    const e = estadoDe(r, rec);
+    return e && (e.estado !== 'LIVRE' || e.okAdiadosPara.length);
+  }));
+  const eventos = REGIOES.flatMap((r) => ((dados && dados[r] && dados[r].eventos) || []).map((e) => ({ r, e })))
+    .sort((a, b) => b.e.localeCompare(a.e)).slice(0, 14);
+  const membros = REGIOES.map((r) => dados && dados[r] && dados[r].membros).find(Boolean) || {};
+
   return (
     <div className="cartao">
-      <h2>Exclusão mútua — Ricart-Agrawala (por recurso fornecedor/produto)</h2>
-      <div className="grelha">
-        {REGIOES.map((r) => {
-          const d = dados && dados[r];
-          if (!d) return <div key={r}><h3>Nó {r} <span className="etiqueta MORTO">EM BAIXO</span></h3></div>;
-          const activos = d.recursos.filter((x) => x.estado !== 'LIVRE' || x.okAdiadosPara.length);
-          return (
-            <div key={r}>
-              <h3>Nó {r}</h3>
-              <div className="linha" style={{ marginBottom: 6 }}>
-                {Object.entries(d.membros).map(([m, e]) => (
-                  <span key={m} className={`etiqueta ${e}`}>{m}: {e}</span>))}
-              </div>
-              <table>
-                <thead><tr><th>Recurso</th><th>Estado</th><th>À espera de OK</th><th>OK adiado a</th></tr></thead>
-                <tbody>
-                  {(activos.length ? activos : d.recursos.slice(0, 3)).map((x) => (
-                    <tr key={x.recurso} className={x.estado === 'DENTRO' ? 'destaque' : ''}>
-                      <td className="mono">{x.recurso}</td>
-                      <td><span className={`etiqueta ${x.estado}`}>{x.estado}</span>
-                        {x.estado !== 'LIVRE' && <span className="suave"> ts={x.meuTs}</span>}</td>
-                      <td>{x.aguardaOkDe.join(', ') || '—'}</td>
-                      <td>{x.okAdiadosPara.join(', ') || '—'}</td>
-                    </tr>))}
-                  {d.recursos.length === 0 && <tr><td colSpan="4" className="suave">sem pedidos ainda</td></tr>}
-                </tbody>
-              </table>
-              <pre className="eventos" style={{ maxHeight: 170 }}>{d.eventos.slice(0, 10).map(curto).join('\n')}</pre>
-            </div>);
-        })}
-      </div>
+      <h2><Lock size={20} />Exclusão mútua — Ricart-Agrawala
+        <span className="extra">um recurso por fornecedor/produto · detector de falhas:{' '}
+          {REGIOES.map((r) => <span key={r} className={`etiqueta ${dados && dados[r] ? 'VIVO' : 'MORTO'}`} style={{ marginLeft: 4 }}>
+            {r}</span>)}</span>
+      </h2>
+      {activos.length === 0 && <p className="suave">Nenhum nó dentro ou à espera da secção crítica. (Experimente o ⚡ Pico simultâneo.)</p>}
+      {activos.map((rec) => (
+        <div key={rec} className="recurso">
+          <div className="nome">{rec}</div>
+          <div className="nos-ra">
+            {REGIOES.map((r) => {
+              const e = estadoDe(r, rec);
+              if (!dados || !dados[r]) {
+                return <div key={r} className="no-ra MORTO"><div className="cab"><ServerCrash size={18} />{r}</div><div className="det">nó em baixo</div></div>;
+              }
+              const est = e ? e.estado : 'LIVRE';
+              return (
+                <div key={r} className={`no-ra ${est}`}>
+                  <div className="cab">
+                    {est === 'DENTRO' ? <KeyRound size={18} /> : est === 'PEDINDO' ? <Hourglass size={18} /> : <CheckCircle2 size={18} />}
+                    {r} <span className={`etiqueta ${est}`}>{est === 'DENTRO' ? 'NA SECÇÃO CRÍTICA' : est === 'PEDINDO' ? 'À ESPERA' : 'LIVRE'}</span>
+                  </div>
+                  {e && est !== 'LIVRE' && <div className="det">carimbo Lamport ts={e.meuTs}</div>}
+                  {e && e.aguardaOkDe.length > 0 && <div className="det">aguarda OK de <b>{e.aguardaOkDe.join(', ')}</b></div>}
+                  {e && e.okAdiadosPara.length > 0 && <div className="det">OK adiado a <b>{e.okAdiadosPara.join(', ')}</b></div>}
+                </div>);
+            })}
+          </div>
+        </div>
+      ))}
+      <h3>Mensagens recentes {Object.keys(membros).length > 0 && <span className="suave">(L = relógio de Lamport)</span>}</h3>
+      <pre className="eventos" style={{ maxHeight: 200 }}>{eventos.map(({ r, e }) => `[${r}] ${curto(e)}`).join('\n') || 'sem mensagens'}</pre>
     </div>
   );
 }
 
-function DoisFases({ dados }) {
+const ICONE_VOTO = { SIM: CheckCircle2, NAO: XCircle, SEM_RESPOSTA: Timer };
+
+/** Cronologia visual de cada 2PC: início → votos de cada participante → decisão → fase 2. */
+function Cronologia2PC({ dados }) {
   const todas = REGIOES.flatMap((r) => (dados && dados[r]) || [])
-    .sort((a, b) => (b.inicio || '').localeCompare(a.inicio || '')).slice(0, 8);
+    .sort((a, b) => (b.inicio || '').localeCompare(a.inicio || '')).slice(0, 7);
   return (
     <div className="cartao">
-      <h2>Two-Phase Commit — cronologia (participantes, votos, decisão)</h2>
+      <h2><GitCommitHorizontal size={20} />Two-Phase Commit — cronologia<span className="extra">fase 1: votos · decisão (gravada no log) · fase 2</span></h2>
       {todas.length === 0 && <p className="suave">Ainda não houve transacções distribuídas.</p>}
-      <table>
-        <thead><tr><th>Hora</th><th>Transacção</th><th>Tipo</th><th>Coord.</th><th>Votos (fase 1)</th>
-          <th>Decisão</th><th>Fase 2</th></tr></thead>
-        <tbody>
-          {todas.map((t) => (
-            <tr key={t.transacaoId + t.inicio} title={t.eventos.join('\n')}>
-              <td className="mono">{hora(t.inicio)}</td>
-              <td className="mono"><b>{t.transacaoId}</b></td>
-              <td>{t.tipo}</td>
-              <td>{t.coordenador}</td>
-              <td>{Object.entries(t.votos).map(([p, v]) => (
-                <span key={p} className={`etiqueta ${v}`} style={{ marginRight: 4 }}
-                      title={t.motivosNao[p] || ''}>{p}: {v}</span>))}</td>
-              <td>{t.decisao ? <span className={`etiqueta ${t.decisao}`}>{t.decisao}</span> : '…'}</td>
-              <td>{Object.entries(t.fase2Concluida).map(([p, ok]) => (
-                <span key={p} className={`etiqueta ${ok ? 'SIM' : 'AVISO'}`} style={{ marginRight: 4 }}>
-                  {p} {ok ? '✓' : 'pendente'}</span>))}</td>
-            </tr>))}
-        </tbody>
-      </table>
-      <p className="suave">Passe o rato sobre uma linha para ver a cronologia completa.</p>
+      {todas.map((t) => (
+        <div key={t.transacaoId + t.inicio} className="tx" title={t.eventos.map(curto).join('\n')}>
+          <div><div className="mono"><b>{hora(t.inicio)}</b></div><div className="quando">coord. {t.coordenador}</div></div>
+          <div>
+            <div className="mono" style={{ marginBottom: 6 }}><b>{t.transacaoId}</b> <span className="suave">{t.tipo}</span></div>
+            <div className="fluxo">
+              <span className="passo"><Database size={15} />PREPARE</span>
+              {Object.entries(t.votos).map(([p, v]) => {
+                const I = ICONE_VOTO[v] || Clock;
+                return <span key={p} className={`passo ${v === 'SIM' ? 'sim' : 'nao'}`} title={t.motivosNao[p] || ''}><I size={15} />{p}: {v === 'SEM_RESPOSTA' ? 'sem resposta' : v}</span>;
+              })}
+              <ArrowRight size={18} className="seta" />
+              {t.decisao ? <span className={`passo ${t.decisao === 'COMMIT' ? 'commit' : 'abort'}`}>{t.decisao}</span>
+                : <span className="passo pendente"><Hourglass size={15} />a votar…</span>}
+              <ArrowRight size={18} className="seta" />
+              {t.participantes.map((p) => {
+                const ok = t.fase2Concluida[p];
+                return <span key={p} className={`passo ${ok ? 'sim' : 'pendente'}`}>{ok ? <CheckCircle2 size={15} /> : <Clock size={15} />}{p}</span>;
+              })}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
 function Relogios({ dados, estados }) {
   const [msg, setMsg] = useState(null);
-  const perturbar = async (r, ms) => {
+  const perturbar = async (r) => {
     try {
-      const a = await paraNo(r, `/relogio/perturbar?ms=${ms}`);
+      const a = await paraNo(r, '/relogio/perturbar?ms=3000');
       setMsg(`Relógio do ${r}: ${a.antesMs} → ${a.depoisMs} ms. A próxima ronda de Berkeley (≤ 20 s) corrige.`);
     } catch (e) {
       setMsg(`Erro: ${e.message}`);
     }
   };
+  // Última ronda "visível" de cada nó (ignora ajustes de ±5 ms depois de convergir)
+  const grafico = REGIOES.filter((r) => dados && dados[r]).map((r) => {
+    const h = dados[r].historico.filter((a) => a.origem === 'Berkeley');
+    const a = h.find((x) => Math.abs(x.deltaMs) > 5) || h[0];
+    return { no: r, antes: a ? a.antesMs : dados[r].desvioEfectivoMs, depois: a ? a.depoisMs : dados[r].desvioEfectivoMs };
+  });
   return (
     <div className="cartao">
-      <h2>Relógios — Berkeley (mestre: Central) e Lamport</h2>
+      <h2><Clock size={20} />Relógios — Berkeley<span className="extra">mestre: Central CORBA · ronda a cada 20 s</span></h2>
+      <GraficoRelogios dados={grafico} />
       <table>
-        <thead><tr><th>Nó</th><th>Hora corrigida</th><th className="num">Desvio actual</th><th className="num">Lamport</th>
-          <th>Última ronda Berkeley (antes → depois)</th><th /></tr></thead>
-        <tbody>
-          {REGIOES.map((r) => {
-            const d = dados && dados[r];
-            if (!d) return <tr key={r}><td>{r}</td><td colSpan="5"><span className="etiqueta MORTO">EM BAIXO</span></td></tr>;
-            const ultimo = d.historico.find((a) => a.origem === 'Berkeley');
-            return (
-              <tr key={r}>
-                <td><b>{r}</b></td>
-                <td className="mono">{estados && estados[r] ? hora(estados[r].horaCorrigida) : ''}</td>
-                <td className="num mono">{d.desvioEfectivoMs > 0 ? '+' : ''}{d.desvioEfectivoMs} ms</td>
-                <td className="num mono">{d.lamport}</td>
-                <td className="mono">{ultimo
-                  ? `${hora(ultimo.hora)}: ${ultimo.antesMs} → ${ultimo.depoisMs} ms (ajuste ${ultimo.deltaMs > 0 ? '+' : ''}${ultimo.deltaMs})`
-                  : 'à espera da 1.ª ronda'}</td>
-                <td><button className="botao secundario" onClick={() => perturbar(r, 3000)}>Desregular +3 s</button></td>
-              </tr>);
-          })}
-        </tbody>
+        <thead><tr><th>Nó</th><th>Hora corrigida</th><th className="num">Desvio actual</th><th className="num">Lamport</th><th /></tr></thead>
+        <tbody>{REGIOES.map((r) => {
+          const d = dados && dados[r];
+          if (!d) return <tr key={r}><td><b>{r}</b></td><td colSpan="4"><span className="etiqueta MORTO">EM BAIXO</span></td></tr>;
+          return (
+            <tr key={r}>
+              <td><b>{r}</b></td>
+              <td className="mono">{estados && estados[r] ? hora(estados[r].horaCorrigida) : ''}</td>
+              <td className="num mono">{d.desvioEfectivoMs > 0 ? '+' : ''}{d.desvioEfectivoMs} ms</td>
+              <td className="num mono">{d.lamport}</td>
+              <td><button className="botao secundario" onClick={() => perturbar(r)}>Desregular +3 s</button></td>
+            </tr>);
+        })}</tbody>
       </table>
       {msg && <div className="mensagem sucesso">{msg}</div>}
-      <p className="suave">Desvio simulado inicial: NORTE +2500 ms, CENTRO −1800 ms, SUL +700 ms (o relógio do sistema nunca é alterado).</p>
+      <p className="suave">Desvios simulados iniciais: NORTE +2500, CENTRO −1800, SUL +700 ms (o relógio do sistema nunca é alterado).</p>
     </div>
   );
 }
@@ -125,34 +146,18 @@ function Fragmentos({ fragmentos }) {
   const eventos = (fragmentos && fragmentos.eventos) || [];
   return (
     <div className="cartao">
-      <h2>Base de dados distribuída — primário / réplica de cada fragmento</h2>
+      <h2><Database size={20} />Base de dados distribuída<span className="extra">primário / réplica de cada fragmento</span></h2>
       <table>
-        <thead><tr><th>Fragmento</th><th>Em uso</th><th>Endereço activo</th><th>Primário</th><th>Réplica</th></tr></thead>
+        <thead><tr><th>Fragmento</th><th>Em uso</th><th>Endereço activo</th><th>Réplica</th></tr></thead>
         <tbody>{f.map((x) => (
           <tr key={x.regiao} className={x.emUso === 'REPLICA' ? 'destaque' : ''}>
             <td><b>{x.regiao}</b></td>
             <td><span className={`etiqueta ${x.emUso}`}>{x.emUso === 'REPLICA' ? 'RÉPLICA PROMOVIDA' : 'PRIMÁRIO'}</span></td>
-            <td className="mono">{x.enderecoActivo}</td><td className="mono">{x.primario}</td><td className="mono">{x.replica}</td>
+            <td className="mono">{x.enderecoActivo}</td><td className="mono">{x.replica}</td>
           </tr>))}</tbody>
       </table>
       <h3>Eventos de failover</h3>
       <pre className="eventos">{eventos.length ? eventos.map((e) => `${hora(e.hora)}  [${e.regiao}] ${e.descricao}`).join('\n') : 'nenhum'}</pre>
-    </div>
-  );
-}
-
-function Reposicoes({ dados }) {
-  return (
-    <div className="cartao">
-      <h2>Reposições (fluxo de compra em cada nó)</h2>
-      <div className="grelha">
-        {REGIOES.map((r) => (
-          <div key={r}><h3>Nó {r}</h3>
-            <pre className="eventos" style={{ maxHeight: 200 }}>
-              {dados && dados[r] ? dados[r].slice(0, 12).map(curto).join('\n') || 'sem reposições' : 'EM BAIXO'}
-            </pre>
-          </div>))}
-      </div>
     </div>
   );
 }
@@ -164,12 +169,22 @@ export default function EcraMonitor({ fragmentos, estados }) {
   const [reposicoes] = usePolling(() => deTodosOsNos('/reposicao/eventos'), 1500);
   return (
     <>
-      <ExclusaoMutua dados={exclusao} />
-      <DoisFases dados={transaccoes} />
-      <Reposicoes dados={reposicoes} />
+      <FilaExclusao dados={exclusao} />
+      <Cronologia2PC dados={transaccoes} />
       <div className="grelha">
         <Relogios dados={relogios} estados={estados} />
         <Fragmentos fragmentos={fragmentos} />
+      </div>
+      <div className="cartao">
+        <h2>Reposições (fluxo de compra em cada nó)</h2>
+        <div className="grelha">
+          {REGIOES.map((r) => (
+            <div key={r}><h3>Nó {r}</h3>
+              <pre className="eventos" style={{ maxHeight: 200 }}>
+                {reposicoes && reposicoes[r] ? reposicoes[r].slice(0, 12).map(curto).join('\n') || 'sem reposições' : 'nó em baixo'}
+              </pre>
+            </div>))}
+        </div>
       </div>
     </>
   );

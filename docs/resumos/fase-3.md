@@ -13,11 +13,11 @@
 docker compose -f deploy/local/docker-compose.yml down -v
 docker compose -f deploy/local/docker-compose.yml up -d --build
 # ~20 s depois: a FARINHA-25 do SUL gera sozinha a ordem OC-SUL-... (SUL 230 + CENTRO 170)
-Invoke-RestMethod http://localhost:8083/api/ordens
-Invoke-RestMethod http://localhost:8083/api/2pc            # votos, decisão, fase 2
+Invoke-RestMethod http://localhost:18083/api/ordens
+Invoke-RestMethod http://localhost:18083/api/2pc            # votos, decisão, fase 2
 # Failover
 docker compose -f deploy/local/docker-compose.yml stop pg-centro
-Start-Sleep 15; (Invoke-RestMethod http://localhost:8081/api/fragmentos).eventos
+Start-Sleep 15; (Invoke-RestMethod http://localhost:18081/api/fragmentos).eventos
 ```
 Testes: `mvn verify` → 41 testes (incluindo `DoisFasesIT` com 3 PostgreSQL reais: commit, abort por voto NÃO, recuperação a partir do log e o ciclo criar → enviada → entregue).
 

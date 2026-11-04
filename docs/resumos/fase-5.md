@@ -15,7 +15,7 @@
 Invoke-RestMethod http://localhost:8090/ws/fornecedor?wsdl          # WSDL
 Invoke-RestMethod http://localhost:8090/api/controlo -Method Put -Body '{"modo":"EM_BAIXO"}' -ContentType 'application/json'
 # provocar uma ordem (ex.: saída de 10 de ACUCAR-10 no SUL) -> 3 tentativas falham, fica PENDENTE_ENVIO
-Invoke-RestMethod http://localhost:8083/api/fornecedores/eventos
+Invoke-RestMethod http://localhost:18083/api/fornecedores/eventos
 Invoke-RestMethod http://localhost:8090/api/controlo -Method Put -Body '{"modo":"NORMAL"}' -ContentType 'application/json'
 # até ~15 s depois: ENVIADA
 ```

@@ -46,8 +46,8 @@ docker compose -f deploy/local/docker-compose.yml ps
 
 | Serviço | Endereço |
 |---|---|
-| **Painel** | **http://localhost:8080** (e `http://<IP do PC>:8080` a partir de outro dispositivo: `deploy/abrir-porta-painel.ps1`) |
-| no-NORTE / no-CENTRO / no-SUL (API) | http://localhost:8081 · 8082 · 8083 |
+| **Painéis** | **:8081 NORTE · :8082 CENTRO · :8083 SUL · :8080 vista geral** — `http://localhost:8081` ou `http://<IP do PC>:8081` a partir de outro portátil (`deploy/abrir-porta-painel.ps1`) |
+| no-NORTE / no-CENTRO / no-SUL (API) | http://localhost:18081 · 18082 · 18083 |
 | Fornecedor (REST / WSDL) | http://localhost:8090/api/v1/ordens · http://localhost:8090/ws/fornecedor?wsdl |
 | UI do HDFS (NameNode) | http://localhost:9870 |
 
@@ -72,7 +72,7 @@ Exemplo (PowerShell):
 
 ```powershell
 $saida = @{ armazemId='NORTE'; produtoId='ARROZ-25'; quantidade=10; motivo='Venda' } | ConvertTo-Json
-Invoke-RestMethod http://localhost:8081/api/movimentos/saida -Method Post -Body $saida -ContentType 'application/json; charset=utf-8'
+Invoke-RestMethod http://localhost:18081/api/movimentos/saida -Method Post -Body $saida -ContentType 'application/json; charset=utf-8'
 docker compose -f deploy/local/docker-compose.yml logs central     # "ALERTA CRITICO de NORTE ..."
 ```
 

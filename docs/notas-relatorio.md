@@ -319,6 +319,9 @@ Evidência: factura, JSONs do 2PC e auditoria com réplicas 3/3. Com o NameNode 
 | Leituras globais "do primeiro nó vivo"; estado por nó pedido a cada nó | Com um nó em baixo, o painel mostra-o a vermelho e continua a mostrar todo o stock e as ordens. |
 | Polling a 1–2 s | Suficiente para a demonstração; mais simples do que WebSockets. |
 | `/interno/*` não exposto pelo proxy | As mensagens do RA e os heartbeats só circulam entre nós. |
+| **v2:** um painel por armazém (portas 8081/8082/8083, região via `/regiao.json`), com cor própria; o Monitor, os Ficheiros e o Fornecedor mostram o sistema inteiro | Cada portátil da demonstração "é" um nó/armazém, mas todos vêem o estado global. As APIs dos nós passaram para 18081–18083. |
+| **v2:** gráficos (Recharts): nível de stock com mínimo; evolução do stock reconstruída a partir dos movimentos; relógios antes/depois de Berkeley; 2PC e fila do RA visuais; notificações por diferença entre leituras | Tornam visíveis os algoritmos distribuídos durante a defesa. |
+| **v2:** estado actualizado nó a nó; `resolver_timeout 1s` no nginx | Um nó parado (nome que deixa de existir no DNS do Docker) fazia cada pedido demorar ~4 s e atrasava a informação dos nós vivos. |
 
 ---
 

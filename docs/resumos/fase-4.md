@@ -13,11 +13,11 @@ Pico simultâneo, sem painel:
 ```powershell
 $a = @{ armazemId='NORTE';  produtoId='ARROZ-25'; quantidade=10; motivo='Pico' } | ConvertTo-Json
 $b = @{ armazemId='CENTRO'; produtoId='ARROZ-25'; quantidade=10; motivo='Pico' } | ConvertTo-Json
-Start-Job { Invoke-RestMethod http://localhost:8081/api/movimentos/saida -Method Post -Body $using:a -ContentType 'application/json' } | Out-Null
-Invoke-RestMethod http://localhost:8082/api/movimentos/saida -Method Post -Body $b -ContentType 'application/json' | Out-Null
+Start-Job { Invoke-RestMethod http://localhost:18081/api/movimentos/saida -Method Post -Body $using:a -ContentType 'application/json' } | Out-Null
+Invoke-RestMethod http://localhost:18082/api/movimentos/saida -Method Post -Body $b -ContentType 'application/json' | Out-Null
 Start-Sleep 8
-(Invoke-RestMethod http://localhost:8081/api/ordens) | Where-Object produtoId -eq 'ARROZ-25'   # UMA ordem
-(Invoke-RestMethod http://localhost:8081/api/exclusao).eventos                                 # OK ADIADO, re-verificação
+(Invoke-RestMethod http://localhost:18081/api/ordens) | Where-Object produtoId -eq 'ARROZ-25'   # UMA ordem
+(Invoke-RestMethod http://localhost:18081/api/exclusao).eventos                                 # OK ADIADO, re-verificação
 ```
 Resultado verificado: o CENTRO (ts=7) entrou primeiro; o NORTE (ts=8) ficou com o OK adiado; houve 1 ordem (CENTRO 306 + NORTE 194); o NORTE, na re-verificação, não criou nenhuma ordem.
 

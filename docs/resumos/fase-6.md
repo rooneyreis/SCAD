@@ -10,8 +10,8 @@
 
 ## Como testar
 ```powershell
-Invoke-RestMethod http://localhost:8081/api/ficheiros            # lista
-Start-Process "http://localhost:8081/api/ficheiros/conteudo?caminho=/scad/facturas/2026/11/OC-SUL-000004.pdf"
+Invoke-RestMethod http://localhost:18081/api/ficheiros            # lista
+Start-Process "http://localhost:18081/api/ficheiros/conteudo?caminho=/scad/facturas/2026/11/OC-SUL-000004.pdf"
 # HDFS em baixo
 docker compose -f deploy/local/docker-compose.yml stop namenode
 # ... provocar uma ordem ... -> filaLocalPendentes > 0

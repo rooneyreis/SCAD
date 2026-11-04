@@ -52,7 +52,7 @@ export async function deQualquerNo(caminho, vivos = REGIOES) {
 
 /** GET a todos os nós; devolve { REGIAO: dados | null }. */
 export async function deTodosOsNos(caminho) {
-  const res = await Promise.allSettled(REGIOES.map((r) => doNo(r, caminho, 2500)));
+  const res = await Promise.allSettled(REGIOES.map((r) => doNo(r, caminho, 1800)));
   return Object.fromEntries(REGIOES.map((r, i) => [r, res[i].status === 'fulfilled' ? res[i].value : null]));
 }
 
@@ -66,3 +66,13 @@ export const fornecedor = {
 /** URL de download de um ficheiro do HDFS (através de um nó vivo). */
 export const urlFicheiro = (regiao, caminho) =>
   `${base(regiao)}/ficheiros/conteudo?caminho=${encodeURIComponent(caminho)}`;
+
+/** Região deste painel (cada porta do nginx serve um armazém; null = vista geral). */
+export async function regiaoDoPainel() {
+  try {
+    const r = await pedido('/regiao.json', {}, 2000);
+    return r && REGIOES.includes(r.regiao) ? r.regiao : null;
+  } catch (e) {
+    return null;
+  }
+}
