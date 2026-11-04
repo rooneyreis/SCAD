@@ -200,29 +200,30 @@ services:
     restart: unless-stopped
 
   # ---------------- Painel web (React + proxy nginx) ----------------
-  # Publicado em 0.0.0.0:8080: acessível a partir de outros dispositivos na mesma rede (IP do PC).
+  # Um painel por armazém: 8081 NORTE, 8082 CENTRO, 8083 SUL (e 8080 = vista geral).
+  # Publicados em 0.0.0.0: acessíveis a partir de outros dispositivos na mesma rede (IP do PC).
   painel:
     build:
       context: ../../painel
     image: scad/painel:dev
-    ports: ["0.0.0.0:8080:8080"]
+    ports: ["0.0.0.0:8080:8080", "0.0.0.0:8081:8081", "0.0.0.0:8082:8082", "0.0.0.0:8083:8083"]
     restart: unless-stopped
 
   # ---------------- Nós regionais (desvios de relógio simulados diferentes) ----------------
   no-norte:
     <<: *no
     environment: { <<: *no-env, NO_REGIAO: NORTE, CORBA_HOST_ANUNCIADO: no-norte, CLOCK_SKEW_MS: 2500 }
-    ports: ["8081:8080"]
+    ports: ["18081:8080"]   # API do nó (o painel do NORTE é o :8081)
     volumes: [fila-norte:/dados]
   no-centro:
     <<: *no
     environment: { <<: *no-env, NO_REGIAO: CENTRO, CORBA_HOST_ANUNCIADO: no-centro, CLOCK_SKEW_MS: -1800 }
-    ports: ["8082:8080"]
+    ports: ["18082:8080"]   # API do nó (o painel do CENTRO é o :8082)
     volumes: [fila-centro:/dados]
   no-sul:
     <<: *no
     environment: { <<: *no-env, NO_REGIAO: SUL, CORBA_HOST_ANUNCIADO: no-sul, CLOCK_SKEW_MS: 700 }
-    ports: ["8083:8080"]
+    ports: ["18083:8080"]   # API do nó (o painel do SUL é o :8083)
     volumes: [fila-sul:/dados]
 
 volumes:
