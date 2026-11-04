@@ -1,0 +1,108 @@
+/* Visual limpo e legível num projector: letra grande, contraste alto, cores com significado. */
+:root {
+  --fundo: #f4f6f9;
+  --cartao: #ffffff;
+  --texto: #1d2733;
+  --suave: #6b7785;
+  --linha: #dfe4ea;
+  --azul: #1f4e79;
+  --verde: #1e8a4c;
+  --amarelo: #c98a00;
+  --vermelho: #c0392b;
+  --cinza: #8a96a3;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  font-size: 16px;
+  background: var(--fundo);
+  color: var(--texto);
+}
+
+/* ---------- faixa de estado ---------- */
+.faixa {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 10px 16px;
+  background: var(--azul); color: #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,.2);
+}
+.faixa h1 { font-size: 20px; margin: 0 14px 0 0; letter-spacing: .5px; }
+.faixa .separador { width: 1px; align-self: stretch; background: rgba(255,255,255,.3); margin: 0 4px; }
+.pastilha {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px; border-radius: 999px;
+  background: rgba(255,255,255,.12); font-size: 14px; font-weight: 600;
+}
+.pastilha .ponto { width: 11px; height: 11px; border-radius: 50%; }
+.ok .ponto { background: #3ddc84; }
+.aviso .ponto { background: #ffc94a; }
+.falha .ponto { background: #ff5c5c; }
+.falha { background: rgba(255, 92, 92, .25); }
+.pastilha small { font-weight: 400; opacity: .85; }
+
+/* ---------- separadores ---------- */
+nav.separadores { display: flex; gap: 4px; padding: 10px 16px 0; flex-wrap: wrap; }
+nav.separadores button {
+  border: none; background: transparent; padding: 10px 16px; font-size: 16px; cursor: pointer;
+  border-bottom: 3px solid transparent; color: var(--suave); font-weight: 600;
+}
+nav.separadores button.activo { color: var(--azul); border-bottom-color: var(--azul); }
+
+main { padding: 12px 16px 40px; }
+
+.grelha { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.cartao {
+  background: var(--cartao); border: 1px solid var(--linha); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 14px;
+}
+.cartao h2 { font-size: 18px; margin: 0 0 10px; color: var(--azul); }
+.cartao h3 { font-size: 15px; margin: 10px 0 6px; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--linha); vertical-align: middle; }
+th { font-size: 13px; text-transform: uppercase; color: var(--suave); letter-spacing: .4px; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.destaque td { background: #fff7e0; }
+
+/* ---------- barra de nível de stock ---------- */
+.barra { position: relative; height: 16px; min-width: 140px; background: #edf0f3; border-radius: 8px; overflow: hidden; }
+.barra .cheio { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 8px; }
+.barra .encomenda { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, #9ec3e6, #9ec3e6 4px, #c6dcf0 4px, #c6dcf0 8px); }
+.barra .minimo { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--texto); }
+.verde { background: var(--verde); }
+.amarelo { background: var(--amarelo); }
+.vermelho { background: var(--vermelho); }
+
+.etiqueta { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 13px; font-weight: 700; color: #fff; }
+.etiqueta.NORMAL, .etiqueta.ENTREGUE, .etiqueta.COMMIT, .etiqueta.SIM, .etiqueta.VIVO, .etiqueta.PRIMARIO, .etiqueta.LIVRE { background: var(--verde); }
+.etiqueta.AVISO, .etiqueta.PENDENTE_ENVIO, .etiqueta.PEDINDO, .etiqueta.REPLICA, .etiqueta.LENTO { background: var(--amarelo); }
+.etiqueta.CRITICO, .etiqueta.RUPTURA, .etiqueta.ABORT, .etiqueta.NAO, .etiqueta.SEM_RESPOSTA, .etiqueta.MORTO, .etiqueta.EM_BAIXO, .etiqueta.ERRO { background: var(--vermelho); }
+.etiqueta.ENVIADA, .etiqueta.DENTRO, .etiqueta.EU { background: var(--azul); }
+.etiqueta.cinza { background: var(--cinza); }
+
+/* ---------- formulários e botões ---------- */
+form.linha, .linha { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+label { display: flex; flex-direction: column; font-size: 13px; color: var(--suave); gap: 3px; }
+input, select { font-size: 16px; padding: 7px 9px; border: 1px solid var(--linha); border-radius: 6px; }
+button.botao {
+  font-size: 15px; font-weight: 600; padding: 8px 14px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--azul); background: var(--azul); color: #fff;
+}
+button.botao.secundario { background: #fff; color: var(--azul); }
+button.botao.perigo { background: var(--vermelho); border-color: var(--vermelho); }
+button.botao.grande { font-size: 17px; padding: 11px 18px; }
+button.botao:disabled { opacity: .5; cursor: default; }
+
+.mensagem { margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 15px; }
+.mensagem.sucesso { background: #e5f5ec; color: #145c33; }
+.mensagem.erro { background: #fbe7e5; color: #8c2116; }
+
+.eventos { font-family: Consolas, "Courier New", monospace; font-size: 13px; max-height: 260px; overflow: auto;
+  background: #f8f9fb; border: 1px solid var(--linha); border-radius: 6px; padding: 6px 8px; margin: 0; white-space: pre-wrap; }
+.suave { color: var(--suave); font-size: 14px; }
+.mono { font-family: Consolas, "Courier New", monospace; font-size: 14px; }
+a { color: var(--azul); }

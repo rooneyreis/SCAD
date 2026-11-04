@@ -199,6 +199,15 @@ services:
     ports: ["8090:8090"]
     restart: unless-stopped
 
+  # ---------------- Painel web (React + proxy nginx) ----------------
+  # Publicado em 0.0.0.0:8080: acessível a partir de outros dispositivos na mesma rede (IP do PC).
+  painel:
+    build:
+      context: ../../painel
+    image: scad/painel:dev
+    ports: ["0.0.0.0:8080:8080"]
+    restart: unless-stopped
+
   # ---------------- Nós regionais (desvios de relógio simulados diferentes) ----------------
   no-norte:
     <<: *no
