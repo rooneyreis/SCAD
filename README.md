@@ -5,17 +5,24 @@ Projecto de Sistemas Distribuídos e Paralelos (ISUTC, LECC 31).
 O SCAD vigia o stock de 3 armazéns regionais (NORTE, CENTRO, SUL) e cria automaticamente
 ordens de compra consolidadas aos fornecedores. Continua a funcionar quando uma máquina cai.
 
-> Estado: **Fase 2** (dados, saídas de stock, alertas CORBA). Teste de fumo com 2 máquinas em
-> [`deploy/fumo/`](deploy/fumo/README.md). As instruções completas de deploy em 3 máquinas e os
-> cenários de falha chegam nas Fases 8 e 9.
+> **Demonstração:** ver [`docs/guiao-demo.md`](docs/guiao-demo.md) (passo a passo e cenários de falha).
+> Resumo de cada fase em [`docs/resumos/`](docs/resumos); decisões de design para o relatório em
+> [`docs/notas-relatorio.md`](docs/notas-relatorio.md).
+>
+> A demo corre num só PC (`deploy/local`), com cada componente num container. O deploy em 3 máquinas
+> está preparado em [`deploy/fumo/`](deploy/fumo/README.md) (teste de fumo com 2 máquinas), mas não foi executado.
 
 ## Estrutura
 
 ```
 idl/SCAD.idl             interface CORBA (fonte única; os stubs Java são gerados no build)
 scad-common/             ORB JacORB, Naming Service, relógios (Lamport, corrigido), cliente HDFS
-scad-no/                 nó regional (Spring Boot): agente de stock CORBA, API REST
-scad-central/            Central de Auditoria CORBA
+scad-no/                 nó regional (Spring Boot): agente de stock CORBA, Ricart-Agrawala, 2PC,
+                         failover, gateway de fornecedores, facturas PDF, API REST
+scad-central/            Central de Auditoria CORBA, mestre Berkeley, auditoria periódica
+fornecedor-contrato/     contrato do fornecedor (interface JAX-WS + mensagens JSON/XML)
+fornecedor-mock/         fornecedor simulado: REST + SOAP (WSDL), interruptor de falhas
+painel/                  painel React (Vite) + nginx (proxy para os nós)
 db/init/                 esquema, catálogo e fragmentação (correm no 1.º arranque de cada primário)
 db/dados/                stock inicial de cada região
 db/replicacao/           arranque das réplicas (streaming replication)
@@ -39,16 +46,22 @@ docker compose -f deploy/local/docker-compose.yml ps
 
 | Serviço | Endereço |
 |---|---|
-| no-NORTE / no-CENTRO / no-SUL | http://localhost:8081 · 8082 · 8083 |
+| **Painel** | **http://localhost:8080** (e `http://<IP do PC>:8080` a partir de outro dispositivo: `deploy/abrir-porta-painel.ps1`) |
+| no-NORTE / no-CENTRO / no-SUL (API) | http://localhost:8081 · 8082 · 8083 |
+| Fornecedor (REST / WSDL) | http://localhost:8090/api/v1/ordens · http://localhost:8090/ws/fornecedor?wsdl |
 | UI do HDFS (NameNode) | http://localhost:9870 |
 
 Para parar: `docker compose -f deploy/local/docker-compose.yml down`.
 Com `-v` apaga também os dados (as bases de dados voltam ao stock inicial no próximo `up`).
 
-## API do nó
+## API do nó (principais)
 
 | Método | Caminho | Descrição |
 |---|---|---|
+| GET | `/api/global/stock`, `/api/global/movimentos` | todos os armazéns (lidos dos fragmentos) |
+| GET / POST | `/api/ordens`, `/api/ordens/{id}/entrega` | ordens de compra; receber entrega (2PC) |
+| GET | `/api/2pc`, `/api/fragmentos`, `/api/exclusao`, `/api/relogio` | monitor: 2PC, failover, Ricart-Agrawala, Berkeley |
+| GET | `/api/ficheiros`, `/api/ficheiros/conteudo?caminho=` | HDFS |
 | GET | `/api/estado` | região, relógios (corrigido, desvio, Lamport), Central e HDFS acessíveis |
 | GET | `/api/stock` | stock do armazém do nó, com catálogo e nível (NORMAL / AVISO / CRITICO / RUPTURA) |
 | POST | `/api/movimentos/saida` | `{"armazemId","produtoId","quantidade","motivo"}` → 201, 400, 404, 409, 422 |

@@ -204,3 +204,137 @@ Evidência: com a Central parada, ficaram 2 alertas pendentes na fila local. A C
 Fica em `deploy/fumo/` (ver o README dessa pasta). Ao validar a parte da M1 num só PC, descobriram-se dois requisitos de ambiente, agora documentados:
 - Com o **WSL em modo `mirrored`** (`.wslconfig`), o Docker Desktop não publica as portas na placa de rede: elas só ficam acessíveis em `localhost`. É preciso o modo NAT (o padrão).
 - Um **PostgreSQL instalado no Windows** ocupa a porta 5432 em `0.0.0.0` e fica com as ligações ao IP da máquina. Tem de ser parado durante a demonstração.
+
+> Por decisão do grupo (apresentação no dia seguinte), a demonstração corre **num só PC** (`deploy/local`),
+> com cada componente num container separado. O deploy em 3 máquinas fica preparado (teste de fumo) mas não foi executado.
+
+---
+
+## Fase 3 — SBDD: ordem consolidada, 2PC, recuperação e failover
+
+### Fluxo completo de uma compra
+
+```mermaid
+sequenceDiagram
+    participant N as Nó que dispara (ex.: NORTE)
+    participant P as Outros nós (RA)
+    participant F as Fragmentos (NORTE, CENTRO, SUL)
+    participant FO as Fornecedor
+    participant H as HDFS
+    N->>N: 1-2. saída → nível CRITICO → alerta CORBA (outbox)
+    N->>P: 3. PEDIDO(recurso=fornecedor/produto, ts Lamport)
+    P-->>N: OK (ou OK adiado)
+    N->>F: 4. re-verificar q + enc < min (dentro da SC)
+    N->>F: 5. 2PC: PREPARE em cada fragmento → log da decisão → COMMIT PREPARED
+    N->>P: 6. sai da SC (envia OKs adiados)
+    N->>FO: 7. REST ou SOAP (timeouts, 3 tentativas, Idempotency-Key)
+    N->>F: 2PC: estado ENVIADA
+    N->>H: 8. factura PDF + JSON do 2PC (via fila local)
+```
+
+### Decisões
+
+| Decisão | Justificação |
+|---|---|
+| Repartição como função pura (`Reparticao.calcular`) | Regra de negócio isolada da infra-estrutura e testada exaustivamente (10 casos JUnit, incluindo arredondamentos e excesso). |
+| Ordem = exactamente 1 lote; prioridades P1 (quem disparou), P2 (perto do mínimo, do mais vazio para o menos vazio), P3 (proporcional à necessidade, sem passar do máximo); resto e excesso para quem disparou | Regra acordada com o grupo. "Perto do mínimo" = `q + enc ≤ 1,2 × min`. |
+| Coordenador = nó que ganhou a exclusão mútua | Já tem a secção crítica do recurso; não há dois coordenadores para o mesmo lote. |
+| 2PC sobre `PREPARE TRANSACTION` do PostgreSQL | O PostgreSQL é o gestor de recursos (participante); o estado preparado sobrevive a reinícios **e é replicado para a réplica** (sobrevive ao failover). |
+| Votos em paralelo, com timeout de 5 s; sem resposta = NÃO | O coordenador nunca fica à espera de um participante morto na fase 1. |
+| Decisão gravada em `log_2pc` (autocommit) **antes** da fase 2 | É o que permite a recuperação: depois de gravada, a decisão é irrevogável. |
+| gid = `coordenador|transacção|participante` | A recuperação sabe de que coordenador é cada transacção preparada. |
+| Recuperação a cada 10 s e no arranque: (a) aplica as decisões do log ainda não concluídas; (b) "presumed abort" das preparadas sem decisão com mais de 30 s | Cobre o coordenador que morre entre as fases e o que morre durante a votação. Também cobre participantes temporariamente em baixo na fase 2. |
+| Fase 2 idempotente (gid inexistente = já concluída) | A recuperação pode repetir sem efeitos laterais. |
+| O mesmo coordenador genérico (`TrabalhoParticipante`) para criar, marcar ENVIADA e receber entrega | As três operações tocam vários fragmentos, e todas são atómicas. |
+| Cabeçalho da ordem só nos fragmentos participantes; leitura distribuída junta cabeçalhos e linhas | Acordado na Fase 0; o painel vê a ordem mesmo com um nó em baixo. |
+| Leituras globais (stock, movimentos, ordens) feitas directamente aos fragmentos | Funcionam com o **nó** de uma região em baixo, desde que o seu **fragmento** esteja acessível. |
+| Failover: o nó da região seguinte no anel (onde estaria a réplica) promove ao fim de 3 falhas (~6 s); os outros esperam mais 2 ciclos e, se a réplica já não estiver em recuperação, adoptam-na | Evita promoções concorrentes (embora `pg_promote` seja idempotente) sem criar um ponto único de falha. |
+| Uma réplica promovida é sempre a autoridade; não há regresso automático ao primário antigo | Evita *split-brain* (dois primários com dados divergentes). O primário antigo tem de ser reintegrado manualmente como réplica. |
+| Lamport retomado a partir de `max(ts_lamport)` de movimentos, alertas, ordens e log 2PC | Os ids das ordens usam o carimbo: um reinício nunca gera ids repetidos. |
+
+### Evidência
+- `DoisFasesIT` (3 PostgreSQL reais): commit cria a ordem em 2 fragmentos e não toca no 3.º; um voto NÃO anula o trabalho já preparado; a recuperação conclui transacções preparadas a partir do log; ciclo criar → ENVIADA (idempotente) → ENTREGUE (e não deixa receber duas vezes).
+- Stack: FARINHA-25 do SUL gerou sozinha `OC-SUL-…` com SUL 230 + CENTRO 170 (P2).
+- **Coordenador morto entre as fases**: com a decisão COMMIT gravada e transacções preparadas em `pg-norte` e `pg-centro`, parou-se o `no-norte`. Ao reiniciar, a recuperação aplicou o COMMIT (0 preparadas), e a ordem foi enviada pelo reenvio automático.
+- **Failover**: `stop pg-centro` → em ~6–10 s o SUL promoveu `pg-centro-replica`, os outros adoptaram-na, e as saídas no CENTRO continuaram a funcionar.
+
+---
+
+## Fase 4 — SOD: Ricart-Agrawala e Berkeley
+
+| Decisão | Justificação |
+|---|---|
+| Ricart-Agrawala (e não o algoritmo do anel) | Não precisa de token nem de reconstruir o anel quando um nó cai; 2(N−1) mensagens por entrada; usa os carimbos de Lamport que já temos. |
+| Exclusão **por recurso** `fornecedor/produto` | Compras de produtos diferentes não se bloqueiam (teste `recursosDiferentesNaoSeBloqueiam`). |
+| Prioridade `(ts Lamport, id do nó)` | Ordem total: o desempate pelo id torna o algoritmo determinístico. |
+| Resposta ao PEDIDO no próprio pedido HTTP (OK imediato) ou mais tarde (`/interno/ra/ok`) | Metade das mensagens no caso comum. |
+| Pedidos sem resposta reenviados a cada 2 s; recepção idempotente; timeout de 30 s | Tolera mensagens perdidas; nunca bloqueia para sempre. |
+| Detector de falhas por heartbeats (1 s; morto ao fim de 3 s); um nó morto sai das listas "à espera de OK" e "OK adiado"; um nó que volta entra nos pedidos seguintes | Requisito: "nunca bloquear à espera de um nó morto". Teste: nó que morre **dentro** da secção crítica. |
+| Pedidos do mesmo nó para o mesmo recurso serializados localmente antes do RA | O RA trata da concorrência entre nós; um trinco local trata das threads do mesmo nó. |
+| Demora de 2 s dentro da secção crítica (configurável) | Só para a demonstração: torna visível a fila e o OK adiado. |
+| **Berkeley**: mestre = Central; `obterRelogio` com compensação de RTT/2; média excluindo diferenças a mais de 10 s da mediana; `ajustarRelogio(media − d_i)`; o mestre também se ajusta | Algoritmo clássico; a mediana torna a exclusão de valores absurdos robusta. |
+| Relógio do nó = sistema + desvio simulado + ajustes; o relógio do SO nunca é alterado | Os relógios reais quase não se desviam; o desvio simulado (NORTE +2500, CENTRO −1800, SUL +700 ms) torna o algoritmo visível. Se a Central cair, mantém-se o último ajuste. |
+
+Evidência: `RicartAgrawalaTest` (5): 60 entradas concorrentes de 3 nós × 2 threads com no máximo 1 dentro; OK adiado e ordem de entrada; nó morto dentro da SC; timeout. Pico simultâneo na stack: o CENTRO (ts=7) entrou antes do NORTE (ts=8, OK adiado), houve **uma ordem**, e o NORTE na re-verificação não criou nenhuma. Berkeley: os 4 relógios convergiram para +350 ms (a média), e as rondas seguintes corrigem ±1 ms.
+
+---
+
+## Fase 5 — Serviços Web
+
+| Decisão | Justificação |
+|---|---|
+| Módulo `fornecedor-contrato` com a interface JAX-WS e as mensagens | O mesmo contrato gera o WSDL no servidor e o proxy no cliente, e as mesmas classes servem para JSON (Jackson) e XML (JAXB). |
+| Apache CXF (servidor e cliente SOAP) | Publica o WSDL automaticamente e converte `FalhaFornecedor` em SOAP Fault com detalhe estruturado (`codigo`, `temporaria`). |
+| Padrão **Adapter**: `ClienteFornecedor` com `ClienteRest` e `ClienteSoap`; escolha pelo campo `fornecedor.protocolo` | O gateway não conhece o protocolo; acrescentar um protocolo é acrescentar uma classe. |
+| Timeouts de 2 s (ligação) e 4 s (resposta); 3 tentativas com espera exponencial (0,5 s, 1 s); erros 4xx ou faults não temporários não se repetem | Robustez sem martelar um fornecedor que rejeita os dados. |
+| **Idempotência**: `ordemId` como chave (`Idempotency-Key` em REST); o fornecedor guarda a confirmação e devolve-a em reenvios | Um timeout do cliente **não** significa que o fornecedor não recebeu: o reenvio nunca duplica a compra. |
+| Envio fora da secção crítica; falha → `PENDENTE_ENVIO`; reenvio a cada 15 s (ordens do próprio coordenador ao fim de 10 s, de qualquer coordenador ao fim de 60 s) | A secção crítica não fica presa à latência do fornecedor; se o coordenador morrer, outro nó envia (a idempotência torna isto seguro). |
+| Não enviar se faltarem linhas (fragmento inacessível) | O fornecedor rejeitaria a ordem como permanentemente inválida. |
+
+Evidência: REST (FARINHA) e SOAP (OLEO) chegam a ENVIADA. Com o fornecedor EM_BAIXO: 3 tentativas, a ordem fica PENDENTE e é reenviada quando ele volta. No modo LENTO (8 s): o cliente desistiu por timeout mas o fornecedor aceitou; o reenvio foi devolvido como **duplicado**, com a mesma confirmação → 1 só compra. *Bug encontrado e corrigido*: um timeout de leitura a meio da resposta chegava como `RestClientException` genérica e não era repetido; passou a ser tratado como falha temporária.
+
+---
+
+## Fase 6 — DFS (HDFS)
+
+| Decisão | Justificação |
+|---|---|
+| HDFS: 1 NameNode + 3 DataNodes, replicação 3 | Um ficheiro sobrevive à perda de 2 DataNodes. **O NameNode é um ponto único de falha** (não há HA nesta configuração). |
+| Estrutura: `/scad/facturas/AAAA/MM/OC-xxx.pdf`, `/scad/auditoria/AAAA-MM-DD/`, `/scad/2pc/`, `/scad/logs/erros/AAAA-MM-DD/` | Pedida no enunciado; particionada por data. |
+| **Fila local "store and forward"** (`FilaHdfs`): grava primeiro no disco do nó (volume) e depois envia por ordem; o `.caminho` é escrito por último com rename atómico | Nada se perde com o HDFS em baixo, nem se o nó reiniciar; nunca se envia uma entrada incompleta. |
+| Factura gerada pelo nó que confirmou o envio (OpenPDF) | Um único emissor por envio; reenvios reescrevem o mesmo caminho (idempotente). |
+| Auditoria periódica na Central (`consultarTodos` CORBA a cada 60 s) com os alertas do período | Usa a interface IDL para auditar, como pedido. |
+| Cliente HDFS *shaded* com `dfs.client.use.datanode.hostname` e `replace-datanode-on-failure=NEVER` | Ver Fase 1. |
+
+Evidência: factura, JSONs do 2PC e auditoria com réplicas 3/3. Com o NameNode parado, 3 ficheiros ficaram na fila e foram enviados quando ele voltou. Com um DataNode parado, a factura continuou a descarregar-se. Teste `FilaHdfsTest`.
+
+---
+
+## Fase 7 — Painel
+
+| Decisão | Justificação |
+|---|---|
+| React (Vite) servido por **nginx** com proxy para os 3 nós e o fornecedor, em vez de cada nó servir o painel | Uma só porta (8080) para aceder a partir de outros dispositivos; o painel não depende de nenhum nó em particular. Desvio em relação ao plano inicial, documentado. |
+| `resolver` do Docker com variáveis no `proxy_pass` | O nginx resolve os nomes a cada pedido: um nó parado só faz falhar os pedidos a esse nó. |
+| Leituras globais "do primeiro nó vivo"; estado por nó pedido a cada nó | Com um nó em baixo, o painel mostra-o a vermelho e continua a mostrar todo o stock e as ordens. |
+| Polling a 1–2 s | Suficiente para a demonstração; mais simples do que WebSockets. |
+| `/interno/*` não exposto pelo proxy | As mensagens do RA e os heartbeats só circulam entre nós. |
+
+---
+
+## Testes automáticos (resumo final)
+
+| Módulo | Testes | O que cobrem |
+|---|---|---|
+| scad-common | 9 | CORBA real em Java 17; Lamport; relógio corrigido; fila HDFS |
+| scad-no (unitários) | 26 | níveis de stock; repartição (10 casos); Ricart-Agrawala (5, com falhas) |
+| scad-no (integração, Testcontainers) | 12 | fluxo base com PostgreSQL real; 2PC com 3 PostgreSQL (commit, abort, recuperação, ciclo completo) |
+| scad-central | 1 | mediana do Berkeley |
+| fornecedor-mock | 3 | idempotência, validação, modos de falha |
+| **Total** | **51** | `mvn verify` (ver README) |
+
+## Limitações conhecidas (para a secção de discussão)
+- Teste com 3 máquinas físicas não executado (ver `deploy/fumo`); em Docker Desktop o NameNode vê os DataNodes remotos pelo IP do gateway do Docker, o que pode exigir portas de DataNode diferentes por máquina.
+- O NameNode é um ponto único de falha; o primário antigo não é reintegrado automaticamente depois de um failover.
+- O detector de falhas assume um limite de 3 s (sistema síncrono): um nó muito lento é tratado como morto.
+- O fornecedor-mock guarda as ordens em memória.
