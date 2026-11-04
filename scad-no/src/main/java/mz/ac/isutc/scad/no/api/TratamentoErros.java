@@ -55,6 +55,21 @@ public class TratamentoErros {
         return problema(HttpStatus.SERVICE_UNAVAILABLE, "Exclusão mútua indisponível", e.getMessage());
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    ProblemDetail argumentoInvalido(IllegalArgumentException e) {
+        return problema(HttpStatus.BAD_REQUEST, "Pedido inválido", e.getMessage());
+    }
+
+    @ExceptionHandler(java.io.FileNotFoundException.class)
+    ProblemDetail ficheiroInexistente(java.io.FileNotFoundException e) {
+        return problema(HttpStatus.NOT_FOUND, "Ficheiro não encontrado", e.getMessage());
+    }
+
+    @ExceptionHandler(java.io.IOException.class)
+    ProblemDetail hdfsIndisponivel(java.io.IOException e) {
+        return problema(HttpStatus.SERVICE_UNAVAILABLE, "HDFS indisponível", e.getMessage());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ProblemDetail dadosInvalidos(MethodArgumentNotValidException e) {
         String detalhe = e.getBindingResult().getFieldErrors().stream()

@@ -65,6 +65,30 @@ public final class ClienteHdfs implements Closeable {
         return caminhos;
     }
 
+    /** Lista recursiva dos ficheiros sob {@code directorio}. */
+    public List<Entrada> listarRecursivo(String directorio) throws IOException {
+        List<Entrada> lista = new ArrayList<>();
+        Path dir = new Path(directorio);
+        if (!fs.exists(dir)) {
+            return lista;
+        }
+        var it = fs.listFiles(dir, true);
+        while (it.hasNext()) {
+            var f = it.next();
+            lista.add(new Entrada(f.getPath().toUri().getPath(), f.getLen(), f.getModificationTime(),
+                    f.getReplication(), f.getBlockLocations().length == 0 ? 0
+                    : f.getBlockLocations()[0].getHosts().length));
+        }
+        return lista;
+    }
+
+    /**
+     * @param replicacao     factor de replicação pedido
+     * @param replicasVivas  réplicas do 1.º bloco em DataNodes vivos
+     */
+    public record Entrada(String caminho, long tamanho, long modificadoEm, short replicacao, int replicasVivas) {
+    }
+
     /** true se o NameNode responde. */
     public boolean disponivel() {
         try {

@@ -18,6 +18,7 @@ import mz.ac.isutc.scad.common.relogio.RelogioCorrigido;
 import mz.ac.isutc.scad.no.bd.FragmentosBd;
 import mz.ac.isutc.scad.no.bd.FragmentosBd.Fragmento;
 import mz.ac.isutc.scad.no.bd.FragmentosBd.Ligacao;
+import mz.ac.isutc.scad.no.documentos.RegistoErros;
 
 /**
  * Failover dos fragmentos PostgreSQL (replicação mestre-escravo).
@@ -43,12 +44,14 @@ public class MonitorFailover {
 
     private final FragmentosBd fragmentos;
     private final RelogioCorrigido relogio;
+    private final RegistoErros erros;
     private final Map<String, Integer> falhasSeguidas = new ConcurrentHashMap<>();
     private final Deque<EventoFailover> eventos = new ConcurrentLinkedDeque<>();
 
-    public MonitorFailover(FragmentosBd fragmentos, RelogioCorrigido relogio) {
+    public MonitorFailover(FragmentosBd fragmentos, RelogioCorrigido relogio, RegistoErros erros) {
         this.fragmentos = fragmentos;
         this.relogio = relogio;
+        this.erros = erros;
     }
 
     @Scheduled(initialDelay = 1_000, fixedDelay = 2_000)
@@ -142,6 +145,7 @@ public class MonitorFailover {
 
     private void registar(String regiao, String descricao) {
         log.warn("FAILOVER: {}", descricao);
+        erros.erro("FAILOVER", descricao);
         eventos.addFirst(new EventoFailover(relogio.agora(), regiao, descricao));
         while (eventos.size() > MAX_EVENTOS) {
             eventos.removeLast();

@@ -35,6 +35,8 @@ public class CentralAuditoriaImpl extends CentralAuditoriaPOA {
     private static final int MEMORIA_ALERTAS = 10_000;
 
     private final Map<String, AgenteStock> agentes = new ConcurrentHashMap<>();
+    // Alertas recebidos desde o último relatório de auditoria
+    private final java.util.Queue<String> alertasDoPeriodo = new java.util.concurrent.ConcurrentLinkedQueue<>();
     // Ids dos alertas já recebidos (os mais antigos são esquecidos quando se excede o limite)
     private final Set<String> alertasRecebidos = Collections.newSetFromMap(new LinkedHashMap<>() {
         @Override
@@ -65,6 +67,9 @@ public class CentralAuditoriaImpl extends CentralAuditoriaPOA {
         log.info("ALERTA {} de {}: produto={} quantidade={} minimo={} (id={}, hora do nó={})",
                 nomeNivel(alerta.nivel), alerta.armazemId, alerta.produtoId,
                 alerta.quantidadeActual, alerta.minimo, alerta.alertaId, Instant.ofEpochMilli(alerta.timestamp));
+        alertasDoPeriodo.add(String.format("%s  %-8s %-7s %-12s quantidade=%d minimo=%d id=%s",
+                Instant.ofEpochMilli(alerta.timestamp), nomeNivel(alerta.nivel), alerta.armazemId, alerta.produtoId,
+                alerta.quantidadeActual, alerta.minimo, alerta.alertaId));
     }
 
     private static String nomeNivel(NivelAlerta nivel) {
@@ -78,6 +83,16 @@ public class CentralAuditoriaImpl extends CentralAuditoriaPOA {
 
     public Map<String, AgenteStock> agentes() {
         return agentes;
+    }
+
+    /** Devolve e esvazia os alertas recebidos desde a última chamada. */
+    public java.util.List<String> retirarAlertasDoPeriodo() {
+        java.util.List<String> lista = new java.util.ArrayList<>();
+        String a;
+        while ((a = alertasDoPeriodo.poll()) != null) {
+            lista.add(a);
+        }
+        return lista;
     }
 
     private void verificarAgente(String armazemId, AgenteStock agente) {

@@ -9,11 +9,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
@@ -60,6 +62,7 @@ public class Coordenador2PC {
         return t;
     });
     private final Deque<Cronologia2PC> cronologias = new ConcurrentLinkedDeque<>();
+    private final List<Consumer<Cronologia2PC.Vista>> aoTerminar = new CopyOnWriteArrayList<>();
 
     /** Só para a demonstração: pausa entre a decisão e a fase 2 (para "matar" o coordenador). */
     private volatile long pausaAntesFase2Ms;
@@ -132,7 +135,24 @@ public class Coordenador2PC {
             log2pc.marcarConcluida(transacaoId);
         }
         c.fim(relogio.agora());
+        notificar(c);
         return decisao;
+    }
+
+    /** Regista quem deve ser avisado no fim de cada transacção (ex.: arquivo no HDFS). */
+    public void aoTerminar(Consumer<Cronologia2PC.Vista> accao) {
+        aoTerminar.add(accao);
+    }
+
+    private void notificar(Cronologia2PC c) {
+        Cronologia2PC.Vista v = c.vista();
+        aoTerminar.forEach(a -> {
+            try {
+                a.accept(v);
+            } catch (RuntimeException e) {
+                log.warn("Ouvinte do 2PC falhou: {}", e.getMessage());
+            }
+        });
     }
 
     private void preparar(String participante, String gid, TrabalhoParticipante trabalho) throws SQLException {
@@ -204,6 +224,7 @@ public class Coordenador2PC {
 
     void registarCronologia(Cronologia2PC c) {
         guardar(c);
+        notificar(c);
     }
 
     public List<Cronologia2PC.Vista> cronologias() {

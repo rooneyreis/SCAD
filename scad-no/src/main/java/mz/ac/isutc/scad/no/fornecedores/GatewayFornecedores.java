@@ -27,6 +27,7 @@ import jakarta.annotation.PreDestroy;
 import mz.ac.isutc.scad.common.relogio.RelogioCorrigido;
 import mz.ac.isutc.scad.fornecedor.contrato.ConfirmacaoOrdem;
 import mz.ac.isutc.scad.fornecedor.contrato.PedidoOrdem;
+import mz.ac.isutc.scad.no.documentos.RegistoErros;
 import mz.ac.isutc.scad.no.fornecedores.ClienteFornecedor.FalhaEnvio;
 import mz.ac.isutc.scad.no.ordens.Catalogo;
 import mz.ac.isutc.scad.no.ordens.OrdemCompra;
@@ -59,6 +60,7 @@ public class GatewayFornecedores {
     private final Catalogo catalogo;
     private final RelogioCorrigido relogio;
     private final String urlBase;
+    private final RegistoErros erros;
 
     private final ExecutorService executor = Executors.newFixedThreadPool(2, r -> new Thread(r, "gateway-fornecedores"));
     private final Set<String> emEnvio = ConcurrentHashMap.newKeySet();
@@ -67,13 +69,14 @@ public class GatewayFornecedores {
 
     public GatewayFornecedores(List<ClienteFornecedor> clientes, RepositorioOrdens ordens, ServicoOrdens servicoOrdens,
                                Catalogo catalogo, RelogioCorrigido relogio, ServicoReposicao reposicao,
-                               @Value("${scad.fornecedores.url-base}") String urlBase) {
+                               RegistoErros erros, @Value("${scad.fornecedores.url-base}") String urlBase) {
         this.clientes = clientes.stream().collect(Collectors.toMap(ClienteFornecedor::protocolo, Function.identity()));
         this.ordens = ordens;
         this.servicoOrdens = servicoOrdens;
         this.catalogo = catalogo;
         this.relogio = relogio;
         this.urlBase = urlBase;
+        this.erros = erros;
         reposicao.aoCriarOrdem(this::enviarEmSegundoPlano);
     }
 
@@ -139,6 +142,8 @@ public class GatewayFornecedores {
                 }
             }
             evento(ordemId + " fica PENDENTE_ENVIO; o reenvio automático tenta de novo dentro de 15 s");
+            erros.erro("FORNECEDOR", "Envio de " + ordemId + " por " + cliente.protocolo() + " falhou após "
+                    + MAX_TENTATIVAS + " tentativas; fica PENDENTE_ENVIO");
             return false;
         } catch (RuntimeException e) {
             evento(ordemId + ": envio interrompido (" + e.getMessage() + ")");
