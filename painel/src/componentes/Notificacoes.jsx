@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Info, ServerCrash } from 'lucide-react';
 import { REGIOES } from '../api.js';
+import { abaixoDoMinimo } from '../tema.js';
 
 const DURACAO_MS = 7000;
 const ICONE = { alerta: AlertTriangle, sucesso: CheckCircle2, aviso: ServerCrash, info: Info };
@@ -35,12 +36,11 @@ export function useDetectorEventos({ estados, stock, ordens, fragmentos, regiao 
   useEffect(() => {
     if (!stock) return;
     const chave = (l) => `${l.armazemId}/${l.produtoId}`;
-    const critico = (l) => l.nivel === 'CRITICO' || l.nivel === 'RUPTURA';
     const antes = anterior.current.stock;
     if (antes) {
       stock.stock.forEach((l) => {
         const a = antes.get(chave(l));
-        if (a && !critico(a) && critico(l) && (!regiao || l.armazemId === regiao)) {
+        if (a && !abaixoDoMinimo(a) && abaixoDoMinimo(l) && (!regiao || l.armazemId === regiao)) {
           notificar('alerta', `Alerta de stock: ${l.produtoNome} no ${l.armazemId}`,
             `${l.quantidade} < mínimo ${l.minimo} → alerta CORBA + reposição`);
         }

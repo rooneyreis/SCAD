@@ -50,6 +50,7 @@ main { padding: 22px 26px 50px; max-width: 1600px; }
 .kpi .icone { width: 50px; height: 50px; border-radius: 14px; display: grid; place-items: center; }
 .kpi .valor { font-size: 34px; font-weight: 800; line-height: 1; }
 .kpi .rotulo { color: var(--suave); font-size: 15px; margin-top: 6px; }
+.kpi .nota { color: var(--destaque); font-size: 13px; font-weight: 600; margin-top: 4px; }
 
 .grelha { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); }
 .grelha-2 { display: grid; gap: 16px; grid-template-columns: 1.3fr 1fr; }

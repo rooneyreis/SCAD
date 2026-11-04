@@ -17,3 +17,16 @@ export const GRAFICO = {
 };
 
 export const hora = (iso) => (iso ? new Date(iso).toLocaleTimeString('pt-PT', { hour12: false }) : '');
+
+/**
+ * Nível da prateleira: só conta a quantidade física, ignorando o que já está encomendado.
+ * (O nível do backend conta quantidade + em encomenda, porque serve para decidir se é preciso
+ * encomendar; aqui é para mostrar o estado real do armazém.) Mesmos limiares: mínimo e 1,2 × mínimo.
+ */
+export function nivelPrateleira(l) {
+  if (l.quantidade === 0) return 'RUPTURA';
+  if (l.quantidade < l.minimo) return 'CRITICO';
+  if (5 * l.quantidade <= 6 * l.minimo) return 'AVISO';
+  return 'NORMAL';
+}
+export const abaixoDoMinimo = (l) => nivelPrateleira(l) === 'CRITICO' || nivelPrateleira(l) === 'RUPTURA';

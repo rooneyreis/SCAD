@@ -341,3 +341,9 @@ Evidência: factura, JSONs do 2PC e auditoria com réplicas 3/3. Com o NameNode 
 - O NameNode é um ponto único de falha; o primário antigo não é reintegrado automaticamente depois de um failover.
 - O detector de falhas assume um limite de 3 s (sistema síncrono): um nó muito lento é tratado como morto.
 - O fornecedor-mock guarda as ordens em memória.
+
+### Painel: nível da prateleira vs. nível de reposição
+O backend classifica o stock por `quantidade + em_encomenda` (evita encomendar duas vezes o mesmo produto).
+No painel isso fazia o crítico desaparecer em 1–2 s (a ordem é criada logo). O painel passou a mostrar o
+**nível da prateleira** (só a quantidade física, mesmos limiares), indicando quantos produtos abaixo do mínimo
+já têm encomenda a caminho. A lógica de reposição não mudou.

@@ -3,17 +3,17 @@ import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, ReferenceLine,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { COR_NIVEL, GRAFICO, hora } from '../tema.js';
+import { COR_NIVEL, GRAFICO, hora, nivelPrateleira } from '../tema.js';
 
 const eixo = { tick: { fontSize: 13, fill: GRAFICO.eixo }, stroke: GRAFICO.grelha };
 const dica = { contentStyle: GRAFICO.tooltip, labelStyle: { color: '#e5e7eb' }, itemStyle: { color: '#e5e7eb' },
   cursor: { fill: 'rgba(255,255,255,.04)' } };
 const legenda = { wrapperStyle: { fontSize: 14, color: GRAFICO.eixo } };
 
-/** Nível de stock por produto: barras arredondadas (cor do nível) + em encomenda + traço do mínimo. */
+/** Nível de stock por produto: barras arredondadas (cor do nível da prateleira) + em encomenda + traço do mínimo. */
 export function GraficoNivelStock({ linhas }) {
   const dados = linhas.map((l) => ({
-    produto: l.produtoId, quantidade: l.quantidade, encomenda: l.emEncomenda, minimo: l.minimo, nivel: l.nivel,
+    produto: l.produtoId, quantidade: l.quantidade, encomenda: l.emEncomenda, minimo: l.minimo, nivel: nivelPrateleira(l),
   }));
   return (
     <ResponsiveContainer width="100%" height={310}>

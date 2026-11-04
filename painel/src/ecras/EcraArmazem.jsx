@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BarChart3, LineChart as IconeLinha, PackageMinus, Table2 } from 'lucide-react';
 import { REGIOES, paraNo } from '../api.js';
-import { COR_NIVEL } from '../tema.js';
+import { COR_NIVEL, nivelPrateleira } from '../tema.js';
 import { GraficoEvolucao, GraficoNivelStock } from '../componentes/Graficos.jsx';
 
 /** Barra horizontal compacta: quantidade + em encomenda + traço do mínimo. */
@@ -10,7 +10,7 @@ function Barra({ s }) {
   const pct = (v) => `${Math.min(100, (v / escala) * 100)}%`;
   return (
     <div style={{ position: 'relative', height: 12, background: '#2a2f3a', borderRadius: 6, overflow: 'hidden', minWidth: 160 }}>
-      <div style={{ position: 'absolute', inset: 0, width: pct(s.quantidade), background: COR_NIVEL[s.nivel], borderRadius: 6 }} />
+      <div style={{ position: 'absolute', inset: 0, width: pct(s.quantidade), background: COR_NIVEL[nivelPrateleira(s)], borderRadius: 6 }} />
       <div style={{ position: 'absolute', top: 0, bottom: 0, left: pct(s.quantidade), width: pct(s.emEncomenda), background: 'var(--destaque)', opacity: .55 }} />
       <div style={{ position: 'absolute', top: -2, bottom: -2, left: pct(s.minimo), width: 2, background: '#e8eaee' }} />
     </div>
@@ -104,7 +104,7 @@ export default function EcraArmazem({ regiao, vivos, stock, movimentos }) {
         <h2><Table2 size={20} />Stock do armazém {armazem}</h2>
         <table>
           <thead><tr><th>Produto</th><th>Fornecedor</th><th className="num">Quantidade</th><th className="num">Mínimo</th>
-            <th className="num">Máximo</th><th className="num">Em encomenda</th><th>Nível</th><th /></tr></thead>
+            <th className="num">Máximo</th><th className="num">Em encomenda</th><th>Prateleira</th><th /></tr></thead>
           <tbody>
             {linhas.map((s) => (
               <tr key={s.produtoId}>
@@ -115,7 +115,7 @@ export default function EcraArmazem({ regiao, vivos, stock, movimentos }) {
                 <td className="num">{s.maximo}</td>
                 <td className="num">{s.emEncomenda || '—'}</td>
                 <td style={{ width: 200 }}><Barra s={s} /></td>
-                <td><span className={`etiqueta ${s.nivel}`}>{s.nivel}</span></td>
+                <td><span className={`etiqueta ${nivelPrateleira(s)}`}>{nivelPrateleira(s)}</span></td>
               </tr>))}
           </tbody>
         </table>
