@@ -5,13 +5,20 @@ import { usePolling } from '../usePolling.js';
 const tamanho = (b) => (b < 1024 ? `${b} B` : `${(b / 1024).toFixed(1)} KB`);
 const tipo = (c) => c.split('/')[2] || '';
 
-export default function EcraFicheiros({ vivos }) {
+/** Ficheiros que dizem respeito a um armazém: facturas e 2PC das suas ordens, e os seus logs de erros. */
+function doArmazem(caminho, regiao, idsOrdens) {
+  return [...idsOrdens].some((id) => caminho.includes(id)) || caminho.endsWith(`-${regiao}.json`)
+    || caminho.includes(`/erros/`) && caminho.includes(`/${regiao}-`);
+}
+
+export default function EcraFicheiros({ regiao, vivos, ordens }) {
   const [dados, erro] = usePolling(() => deQualquerNo('/ficheiros', vivos), 3000, [vivos.join()]);
   const no = vivos[0] || 'NORTE';
-  const ficheiros = (dados && dados.ficheiros) || [];
+  const ids = new Set((ordens || []).filter((o) => o.linhas[regiao]).map((o) => o.id));
+  const ficheiros = ((dados && dados.ficheiros) || []).filter((f) => !regiao || doArmazem(f.caminho, regiao, ids));
   return (
     <div className="cartao">
-      <h2>Ficheiros no HDFS (/scad)</h2>
+      <h2>Ficheiros no HDFS {regiao ? `— ${regiao} (facturas, 2PC e erros deste armazém)` : '(/scad)'}</h2>
       {erro && !dados && <div className="mensagem erro">{erro}</div>}
       {dados && (
         <p>

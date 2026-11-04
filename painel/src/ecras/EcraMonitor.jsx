@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ArrowRight, CheckCircle2, Clock, Database, GitCommitHorizontal, Hourglass, KeyRound, Lock,
-  ServerCrash, Timer, XCircle } from 'lucide-react';
+  Server, ServerCrash, Timer, XCircle, Zap } from 'lucide-react';
 import { REGIOES, deTodosOsNos, paraNo } from '../api.js';
 import { usePolling } from '../usePolling.js';
 import { hora } from '../tema.js';
@@ -162,13 +162,78 @@ function Fragmentos({ fragmentos }) {
   );
 }
 
-export default function EcraMonitor({ fragmentos, estados }) {
+function Pastilha({ estado, texto, detalhe }) {
+  return <span className={`pastilha ${estado}`}><span className="ponto" />{texto}{detalhe && <small>{detalhe}</small>}</span>;
+}
+
+/** Estado de todo o sistema: nós, Central, HDFS, fornecedor e qual BD está em uso em cada fragmento. */
+function EstadoSistema({ estados, fragmentos, fornecedor }) {
+  const nos = estados || {};
+  const vivos = REGIOES.filter((r) => nos[r]);
+  const centralOk = vivos.some((r) => nos[r].centralDisponivel);
+  const hdfsOk = vivos.some((r) => nos[r].hdfsDisponivel);
+  const frag = (fragmentos && fragmentos.fragmentos) || [];
+  return (
+    <div className="cartao">
+      <h2><Server size={20} />Estado do sistema<span className="extra">{vivos.length}/3 nós activos</span></h2>
+      <div className="linha" style={{ gap: 8 }}>
+        {REGIOES.map((r) => (
+          <Pastilha key={r} estado={nos[r] ? '' : 'falha'} texto={`Nó ${r}`} detalhe={nos[r] ? `L=${nos[r].lamport}` : 'EM BAIXO'} />
+        ))}
+        <Pastilha estado={vivos.length === 0 ? 'aviso' : centralOk ? '' : 'falha'} texto="Central CORBA"
+                  detalhe={vivos.length > 0 && !centralOk ? 'EM BAIXO' : ''} />
+        <Pastilha estado={vivos.length === 0 ? 'aviso' : hdfsOk ? '' : 'falha'} texto="HDFS"
+                  detalhe={vivos.length > 0 && !hdfsOk ? 'EM BAIXO' : ''} />
+        <Pastilha estado={!fornecedor ? 'falha' : fornecedor.modo === 'NORMAL' ? '' : 'aviso'} texto="Fornecedor"
+                  detalhe={fornecedor ? (fornecedor.modo === 'NORMAL' ? '' : fornecedor.modo) : 'EM BAIXO'} />
+        {frag.map((f) => (
+          <Pastilha key={f.regiao} estado={f.emUso === 'PRIMARIO' ? '' : 'aviso'} texto={`BD ${f.regiao}`}
+                    detalhe={f.emUso === 'PRIMARIO' ? 'primário' : 'RÉPLICA promovida'} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Cenários de demonstração: o pico simultâneo provoca a corrida entre NORTE e CENTRO. */
+function CenariosDemo() {
+  const [msg, setMsg] = useState(null);
+  const [ocupado, setOcupado] = useState(false);
+  const pico = async () => {
+    setOcupado(true);
+    const corpo = (a) => ({ armazemId: a, produtoId: 'ARROZ-25', quantidade: 10, motivo: 'Pico simultâneo' });
+    const res = await Promise.allSettled([paraNo('NORTE', '/movimentos/saida', corpo('NORTE')),
+                                          paraNo('CENTRO', '/movimentos/saida', corpo('CENTRO'))]);
+    const txt = res.map((r, i) => `${['NORTE', 'CENTRO'][i]}: ${r.status === 'fulfilled'
+      ? `${r.value.stockApos.quantidade} (${r.value.nivel})` : r.reason.message}`).join(' · ');
+    setMsg({ ok: res.every((r) => r.status === 'fulfilled'),
+      texto: `10 de ARROZ-25 no NORTE e no CENTRO ao mesmo tempo → ${txt}. Veja abaixo a exclusão mútua: só sai UMA ordem.` });
+    setOcupado(false);
+  };
+  return (
+    <div className="cartao">
+      <h2><Zap size={20} />Cenários de demo</h2>
+      <div className="linha">
+        <button className="botao grande perigo" disabled={ocupado} onClick={pico}>
+          <Zap size={18} />Pico simultâneo (NORTE + CENTRO)
+        </button>
+        <span className="suave">Os dois armazéns ficam abaixo do mínimo ao mesmo tempo e competem pelo mesmo recurso
+          (GRAO-DOURADO/ARROZ-25).</span>
+      </div>
+      {msg && <div className={`mensagem ${msg.ok ? 'sucesso' : 'erro'}`}>{msg.texto}</div>}
+    </div>
+  );
+}
+
+export default function EcraMonitor({ fragmentos, estados, fornecedor }) {
   const [exclusao] = usePolling(() => deTodosOsNos('/exclusao'), 1000);
   const [transaccoes] = usePolling(() => deTodosOsNos('/2pc'), 1500);
   const [relogios] = usePolling(() => deTodosOsNos('/relogio'), 2000);
   const [reposicoes] = usePolling(() => deTodosOsNos('/reposicao/eventos'), 1500);
   return (
     <>
+      <EstadoSistema estados={estados} fragmentos={fragmentos} fornecedor={fornecedor} />
+      <CenariosDemo />
       <FilaExclusao dados={exclusao} />
       <Cronologia2PC dados={transaccoes} />
       <div className="grelha">

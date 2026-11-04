@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BarChart3, LineChart as IconeLinha, PackageMinus, Zap, Table2 } from 'lucide-react';
+import { BarChart3, LineChart as IconeLinha, PackageMinus, Table2 } from 'lucide-react';
 import { REGIOES, paraNo } from '../api.js';
 import { COR_NIVEL } from '../tema.js';
 import { GraficoEvolucao, GraficoNivelStock } from '../componentes/Graficos.jsx';
@@ -9,10 +9,10 @@ function Barra({ s }) {
   const escala = Math.max(s.maximo, s.quantidade + s.emEncomenda);
   const pct = (v) => `${Math.min(100, (v / escala) * 100)}%`;
   return (
-    <div style={{ position: 'relative', height: 12, background: '#edf2f7', borderRadius: 6, overflow: 'hidden', minWidth: 160 }}>
+    <div style={{ position: 'relative', height: 12, background: '#2a2f3a', borderRadius: 6, overflow: 'hidden', minWidth: 160 }}>
       <div style={{ position: 'absolute', inset: 0, width: pct(s.quantidade), background: COR_NIVEL[s.nivel], borderRadius: 6 }} />
-      <div style={{ position: 'absolute', top: 0, bottom: 0, left: pct(s.quantidade), width: pct(s.emEncomenda), background: '#93c5fd' }} />
-      <div style={{ position: 'absolute', top: -2, bottom: -2, left: pct(s.minimo), width: 2, background: '#0f172a' }} />
+      <div style={{ position: 'absolute', top: 0, bottom: 0, left: pct(s.quantidade), width: pct(s.emEncomenda), background: 'var(--destaque)', opacity: .55 }} />
+      <div style={{ position: 'absolute', top: -2, bottom: -2, left: pct(s.minimo), width: 2, background: '#e8eaee' }} />
     </div>
   );
 }
@@ -49,19 +49,6 @@ export default function EcraArmazem({ regiao, vivos, stock, movimentos }) {
     }
   };
 
-  const pico = async () => {
-    setOcupado(true);
-    const corpo = (a) => ({ armazemId: a, produtoId: 'ARROZ-25', quantidade: 10, motivo: 'Pico simultâneo' });
-    const res = await Promise.allSettled([paraNo('NORTE', '/movimentos/saida', corpo('NORTE')),
-                                          paraNo('CENTRO', '/movimentos/saida', corpo('CENTRO'))]);
-    const txt = res.map((r, i) => `${['NORTE', 'CENTRO'][i]}: ${r.status === 'fulfilled'
-      ? `${r.value.stockApos.quantidade} (${r.value.nivel})` : r.reason.message}`).join(' · ');
-    setMsg({ ok: res.every((r) => r.status === 'fulfilled'),
-      texto: `⚡ Pico simultâneo de ARROZ-25 (10 no NORTE + 10 no CENTRO ao mesmo tempo) → ${txt}. `
-        + 'Veja o Monitor: exclusão mútua (Ricart-Agrawala) — só sai UMA ordem.' });
-    setOcupado(false);
-  };
-
   return (
     <>
       <div className="cartao">
@@ -87,10 +74,6 @@ export default function EcraArmazem({ regiao, vivos, stock, movimentos }) {
             <input value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })} />
           </label>
           <button className="botao grande" disabled={ocupado}><PackageMinus size={18} />Registar saída</button>
-          <button type="button" className="botao grande perigo" disabled={ocupado} onClick={pico}
-                  title="10 de ARROZ-25 no NORTE e no CENTRO ao mesmo tempo">
-            <Zap size={18} />Pico simultâneo (NORTE + CENTRO)
-          </button>
         </form>
         {msg && <div className={`mensagem ${msg.ok ? 'sucesso' : 'erro'}`}>{msg.texto}</div>}
       </div>

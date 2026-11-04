@@ -58,23 +58,35 @@ wsl --shutdown
 
 ---
 
-## 1. Visão geral (2 min) — os painéis
+## 1. Disposição e visão geral (2 min)
 
-- **Cabeçalho** com o nome do armazém e a cor da região; à direita, o **estado de todo o sistema**: 3 nós (com o
-  relógio de Lamport), Central CORBA, HDFS, fornecedor e qual BD está em uso em cada fragmento (primário/réplica).
-- **Cartões de resumo**: produtos abaixo do mínimo (do armazém), ordens pendentes, ordens enviadas, nós activos.
-- Separador **Armazém** (o do painel):
-  - gráfico **Nível de stock por produto** (verde/amarelo/vermelho; azul = em encomenda; tracejado = mínimo);
-  - gráfico **Evolução do stock** de um produto (o "dente de serra": as saídas descem, as entregas sobem; mínimo a tracejado vermelho);
-  - formulário **Registar saída** (só para este armazém) e o botão **⚡ Pico simultâneo**.
-- **Ordens** e **Movimentos** mostram por defeito o que diz respeito a este armazém (há a opção "mostrar todas").
-- **Monitor**, **Ficheiros HDFS** e **Fornecedor** mostram o sistema inteiro, iguais em todos os painéis.
-- **Notificações** em baixo, à direita: alerta de stock, ordem criada/enviada/entregue, nó caiu/voltou, réplica promovida.
-- Explicar a **fragmentação**: cada armazém tem a sua BD (o fragmento); o catálogo está replicado em todas.
+### Disposição das carteiras (não há projector)
+| Onde | O que mostra |
+|---|---|
+| Portátil 1 | `http://<IP>:8081` — **Armazém NORTE** (azul) |
+| Portátil 2 | `http://<IP>:8082` — **Armazém CENTRO** (roxo) |
+| Portátil 3 | `http://<IP>:8083` — **Armazém SUL** (âmbar) |
+| **PC do grupo** (corre tudo) | separador **Monitor distribuído** (visão de todo o sistema) + PowerShell para as falhas |
+
+O professor passa de carteira em carteira: em cada portátil vê **só o seu armazém**; no PC vê o sistema inteiro.
+
+### O que há em cada painel de armazém
+- **Barra lateral**: nome e cidade do armazém, **estado deste nó** (activo / EM BAIXO) e **da sua BD**
+  (primário / réplica promovida), e a navegação. Em cima, o caminho (ex.: "Armazém CENTRO / Stock").
+- **Stock**: cartões (abaixo do mínimo, pendentes, enviadas, **unidades em encomenda**), gráfico **Nível de stock por produto**
+  (verde/amarelo/vermelho; cor do armazém = em encomenda; tracejado = mínimo), gráfico **Evolução do stock**
+  (área com gradiente: o "dente de serra"), formulário **Registar saída** e a tabela do armazém.
+- **Ordens**, **Movimentos** e **Ficheiros HDFS**: só os deste armazém (numa ordem aparece a repartição completa,
+  para se perceber a ordem consolidada).
+- **Fornecedor**: interruptor Normal / Em baixo / Lento / Com erros.
+- **Monitor distribuído** (o único com visão global): **Estado do sistema** (todos os nós, Central, HDFS, fornecedor,
+  primário/réplica de cada fragmento), **Cenários de demo** (botão **⚡ Pico simultâneo**), exclusão mútua, 2PC,
+  relógios Berkeley, base de dados distribuída e reposições.
+- **Notificações** (canto inferior direito): alerta de stock, ordem criada/enviada/entregue, nó caiu/voltou, réplica promovida.
 
 ## 2. Fluxo normal de uma compra (3 min) — critérios SBDD, CORBA, Serviços Web, DFS
 
-1. No painel do **NORTE (:8081)**, separador **Armazém**: **Óleo alimentar 5 L**, quantidade **45**, "Registar saída".
+1. No painel do **NORTE (:8081)**, separador **Stock**: **Óleo alimentar 5 L**, quantidade **45**, "Registar saída".
    → a mensagem diz "abaixo do mínimo: alerta CORBA + pedido de reposição"; aparecem as notificações
    "Alerta de stock" e, segundos depois, "Ordem OC-NORTE-… criada (2PC)" e "enviada".
 2. **Monitor → Reposições (nó NORTE)**: pede a secção crítica → DENTRO → repartição do lote de 600 →
@@ -94,9 +106,9 @@ wsl --shutdown
 
 ## 3. Pico simultâneo — exclusão mútua (2 min) — critério SOD
 
-1. Em qualquer painel, separador **Armazém** → botão vermelho **⚡ Pico simultâneo (NORTE + CENTRO)**
+1. No PC do grupo: **Monitor distribuído → Cenários de demo** → botão vermelho **⚡ Pico simultâneo (NORTE + CENTRO)**
    (10 de ARROZ-25 em cada armazém, ao mesmo tempo; ambos ficam abaixo do mínimo de 100).
-2. Ir logo ao **Monitor → Exclusão mútua**: aparece o recurso `GRAO-DOURADO/ARROZ-25` com um nó
+2. Logo abaixo, em **Exclusão mútua**: aparece o recurso `GRAO-DOURADO/ARROZ-25` com um nó
    **NA SECÇÃO CRÍTICA** (verde, "OK adiado a …") e o outro **À ESPERA** (amarelo, "aguarda OK de …").
    A secção crítica dura 2 s de propósito, para se conseguir ver.
 3. Resultado esperado:
@@ -122,8 +134,8 @@ Fazer pela ordem abaixo (do menos para o mais destrutivo). Entre cenários não 
 ### 5.1 Fornecedor em baixo → ordem pendente e reenviada
 | Passo | Acção | O que deve aparecer |
 |---|---|---|
-| 1 | **Fornecedor** → botão **Em baixo** | Faixa: Fornecedor `EM_BAIXO` (amarelo) |
-| 2 | Painel **SUL (:8083)** → **Armazém**: **Açúcar castanho**, quantidade **10** | notificação "Ordem OC-SUL-… criada" |
+| 1 | Separador **Fornecedor** → botão **Em baixo** | **Monitor → Estado do sistema**: Fornecedor `EM_BAIXO` (amarelo) |
+| 2 | Painel **SUL (:8083)** → **Stock**: **Açúcar castanho**, quantidade **10** | notificação "Ordem OC-SUL-… criada" |
 | 3 | **Fornecedor → Gateway dos nós** | 3 tentativas (0,5 s, 1 s de espera) com HTTP 503 → "fica PENDENTE_ENVIO" |
 | 4 | **Ordens** | a ordem `OC-SUL-…` está **PENDENTE_ENVIO** |
 | 5 | **Fornecedor** → **Normal** | em ≤ 15 s a ordem passa a **ENVIADA** (reenvio automático) |
@@ -138,9 +150,9 @@ docker compose -f deploy/local/docker-compose.yml stop no-centro
 ```
 | O que deve aparecer | Quando |
 |---|---|
-| Faixa: **Nó CENTRO EM BAIXO** (vermelho); o painel continua a funcionar | imediato |
+| **Monitor → Estado do sistema** (PC): **Nó CENTRO EM BAIXO**, 2/3 nós activos | ~2 s |
 | **Monitor → Exclusão mútua**: os outros nós vêem `CENTRO: MORTO` | ~3 s (detector de falhas por heartbeats) |
-| No painel do **CENTRO (:8082)**: faixa vermelha **"Nó CENTRO em baixo"**, "2/3 nós activos"; o stock e os gráficos do CENTRO **continuam visíveis** (vêm do fragmento pg-centro, através dos outros nós); Registar saída dá erro claro | ~2 s |
+| No portátil do **CENTRO (:8082)**: faixa vermelha **"Nó CENTRO em baixo — a tentar reconectar…"** e "Nó CENTRO: EM BAIXO" na barra lateral; o stock e os gráficos do CENTRO **continuam visíveis** (vêm do fragmento pg-centro, através dos outros nós); Registar saída dá erro claro | ~2 s |
 | Notificação "Nó CENTRO caiu" em todos os painéis | ~2 s |
 | Saída no CENTRO dá erro (a "loja" CENTRO está em baixo) | — |
 | Uma compra no NORTE continua a funcionar e **inclui o armazém CENTRO** (o 2PC fala directamente com o fragmento) | ex.: Feijão, NORTE, 100 |
@@ -154,7 +166,7 @@ docker compose -f deploy/local/docker-compose.yml stop pg-centro
 | O que deve aparecer | Quando |
 |---|---|
 | **Monitor → Base de dados distribuída**: CENTRO = **RÉPLICA PROMOVIDA** (`pg-centro-replica`) | ~6–10 s |
-| Faixa: **BD CENTRO — RÉPLICA promovida** (amarelo) | idem |
+| **Monitor → Estado do sistema**: **BD CENTRO — RÉPLICA promovida**; no portátil do CENTRO, a barra lateral diz "BD: réplica promovida" | idem |
 | Eventos de failover: "Primário pg-centro caiu: réplica PROMOVIDA a primário por este nó" (nó SUL, o responsável no anel) e "já é primária (promovida por outro nó)" nos outros | idem |
 | Saída no CENTRO **funciona** (escreve na réplica promovida); stock e ordens do CENTRO continuam visíveis | — |
 
@@ -164,7 +176,7 @@ docker compose -f deploy/local/docker-compose.yml stop pg-centro
 ```powershell
 Invoke-RestMethod "http://localhost:18081/api/demo/2pc-pausa?ms=25000" -Method Post   # pausa de 25 s antes da fase 2, só no NORTE (porta da API)
 ```
-1. Painel **NORTE (:8081)** → **Armazém**: **Arroz 25 kg**, quantidade **10** (o NORTE coordena a ordem).
+1. Painel **NORTE (:8081)** → **Stock**: **Arroz 25 kg**, quantidade **10** (o NORTE coordena a ordem).
 2. ~5 s depois, em **Monitor → Two-Phase Commit**: a decisão **COMMIT** já está gravada, mas a fase 2 está vazia (pendente).
    Opcional, transacções preparadas na BD:
    `docker compose -f deploy/local/docker-compose.yml exec pg-norte psql -U scad -d scad -c "select gid from pg_prepared_xacts"`
@@ -181,12 +193,12 @@ docker compose -f deploy/local/docker-compose.yml stop datanode-centro
 ```
 **Ficheiros (HDFS)** → abrir uma factura: abre normalmente (há réplicas noutros DataNodes). Depois: `start datanode-centro`.
 
-Extra, **HDFS (NameNode) em baixo**: `stop namenode` → faixa HDFS vermelha → provocar uma ordem → **Ficheiros**
+Extra, **HDFS (NameNode) em baixo**: `stop namenode` → **Monitor → Estado do sistema**: HDFS vermelho → provocar uma ordem → **Ficheiros**
 mostra "fila local: N ficheiros à espera" → `start namenode` → em ~30 s a fila esvazia e os ficheiros aparecem.
 Dizer que **o NameNode é o ponto único de falha** do HDFS nesta configuração.
 
 ### 5.6 Central de Auditoria em baixo
-`stop central` → faixa "Central CORBA EM BAIXO"; as compras **continuam**; os alertas ficam na fila local (outbox).
+`stop central` → **Monitor → Estado do sistema**: "Central CORBA EM BAIXO"; as compras **continuam**; os alertas ficam na fila local (outbox).
 `start central` → os alertas pendentes chegam (ver `logs central`). Os IORs são persistentes, por isso a referência antiga
 continua válida.
 
@@ -208,7 +220,7 @@ continua válida.
 
 | Problema | Solução rápida |
 |---|---|
-| Faixa toda vermelha / painel não abre | `docker compose -f deploy/local/docker-compose.yml ps`; se faltar algo: `up -d` |
+| Estado do sistema todo vermelho / painel não abre | `docker compose -f deploy/local/docker-compose.yml ps`; se faltar algo: `up -d` |
 | Uma ordem não aparece | esperar ~15 s (reenvio, verificação a cada 30 s); ver **Monitor → Reposições** |
 | Ficou num estado estranho | repor: `down -v` + `up -d --build` (~1 min) |
 | Telemóvel não abre o painel | mostrar no PC; ver o ponto 0.4 (WSL mirrored, firewall, mesma rede) |

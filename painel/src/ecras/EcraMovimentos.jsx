@@ -1,16 +1,12 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { ListOrdered } from 'lucide-react';
 
 export default function EcraMovimentos({ regiao, movimentos }) {
-  const [todos, setTodos] = useState(!regiao);
+  const todos = !regiao;   // painel de armazém: só os movimentos deste armazém
   const lista = (movimentos || []).filter((m) => todos || m.armazemId === regiao).slice(0, 80);
   return (
     <div className="cartao">
       <h2><ListOrdered size={20} />Movimentos de stock {todos ? '(todos os armazéns)' : `— ${regiao}`}
-        {regiao && (
-          <span className="extra"><label style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <input type="checkbox" checked={todos} onChange={(e) => setTodos(e.target.checked)} /> todos os armazéns
-          </label></span>)}
       </h2>
       <table>
         <thead><tr><th>Hora corrigida (Berkeley)</th><th className="num">Lamport</th><th>Armazém</th><th>Tipo</th>

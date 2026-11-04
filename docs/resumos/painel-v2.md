@@ -26,3 +26,16 @@
 ## Reverter
 - Painel antigo: `git checkout painel-v1` (tag).
 - WSL: `Copy-Item "$env:USERPROFILE\.wslconfig.bak" "$env:USERPROFILE\.wslconfig" -Force; wsl --shutdown` e reiniciar o Docker Desktop.
+
+## v2b (04/11, 11:10–11:25) — tema escuro, um armazém por painel
+- Tema escuro com **barra lateral** (nome e cidade do armazém, estado deste nó e da sua BD, navegação) e breadcrumb no topo.
+  Cor por armazém: NORTE azul, CENTRO roxo, SUL âmbar; verde/amarelo/vermelho só para os estados de stock.
+- Os painéis de armazém mostram **só o seu armazém**: Stock, Ordens (com a repartição completa da ordem), Movimentos,
+  Ficheiros (facturas e 2PC das suas ordens, os seus erros). O cartão "nós activos" deu lugar a "unidades em encomenda".
+- **Monitor distribuído** = a única vista global: Estado do sistema (o que estava na faixa do topo), **Cenários de demo**
+  (o botão Pico simultâneo saiu do formulário de saída), exclusão mútua, 2PC, Berkeley, fragmentos.
+- Gráficos: área com gradiente e pontos (evolução), barras arredondadas, tooltips escuros.
+- Testado (arranque limpo, `localhost` e IP 192.168.100.23 nas portas 8081/8082/8083): saída → ordem → ENVIADA;
+  pico no Monitor (NORTE na SC, CENTRO à espera, 1 ordem); `stop no-centro` (o :8082 mostra "em baixo — a tentar
+  reconectar", os outros continuam); fornecedor em baixo → PENDENTE_ENVIO → Normal → ENVIADA.
+- Reverter para antes do tema escuro: `git checkout painel-v2a`.

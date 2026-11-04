@@ -9,7 +9,7 @@ function caminhoFactura(o) {
 }
 
 export default function EcraOrdens({ regiao, vivos, ordens, recarregar }) {
-  const [todas, setTodas] = useState(!regiao);
+  const todas = !regiao;   // painel de armazém: só as ordens com entrega neste armazém
   const [msg, setMsg] = useState(null);
   const [aReceber, setAReceber] = useState(null);
   // A entrega é coordenada pelo nó deste painel (se estiver vivo) ou por outro nó vivo
@@ -32,10 +32,7 @@ export default function EcraOrdens({ regiao, vivos, ordens, recarregar }) {
   return (
     <div className="cartao">
       <h2><Receipt size={20} />Ordens de compra consolidadas {todas ? '(todas)' : `com entrega no ${regiao}`}
-        {regiao && (
-          <span className="extra"><label style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <input type="checkbox" checked={todas} onChange={(e) => setTodas(e.target.checked)} /> mostrar todas
-          </label></span>)}
+        {regiao && <span className="extra">a repartição mostra também os outros armazéns da mesma ordem</span>}
       </h2>
       {msg && <div className={`mensagem ${msg.ok ? 'sucesso' : 'erro'}`} style={{ marginBottom: 12 }}>{msg.texto}</div>}
       {lista.length === 0 && <p className="suave">Ainda não há ordens.</p>}

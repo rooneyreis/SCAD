@@ -1,9 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Activity, FileText, Package, Receipt, Truck, ListOrdered } from 'lucide-react';
+import { Activity, FileText, LayoutDashboard, ListOrdered, Package, Receipt, Truck, Warehouse } from 'lucide-react';
 import { REGIOES, deQualquerNo, doNo, fornecedor, regiaoDoPainel } from './api.js';
 import { usePolling } from './usePolling.js';
 import { TEMA } from './tema.js';
-import Cabecalho from './componentes/Cabecalho.jsx';
 import Resumo from './componentes/Resumo.jsx';
 import Notificacoes, { useDetectorEventos } from './componentes/Notificacoes.jsx';
 import EcraArmazem from './ecras/EcraArmazem.jsx';
@@ -14,17 +13,17 @@ import EcraFornecedor from './ecras/EcraFornecedor.jsx';
 import EcraMovimentos from './ecras/EcraMovimentos.jsx';
 
 const ECRAS = [
-  ['armazem', 'Armazém', Package],
+  ['armazem', 'Stock', Package],
   ['ordens', 'Ordens de compra', Receipt],
-  ['monitor', 'Monitor distribuído', Activity],
   ['movimentos', 'Movimentos', ListOrdered],
   ['ficheiros', 'Ficheiros HDFS', FileText],
   ['fornecedor', 'Fornecedor', Truck],
+  ['monitor', 'Monitor distribuído', Activity],
 ];
 
 /**
  * Estado de cada nó, actualizado nó a nó assim que cada um responde (a cada 1 s):
- * um nó em baixo nunca atrasa a informação dos que estão vivos.
+ * um nó em baixo nunca atrasa a informação dos que estão vivos, e volta sozinho quando reaparece.
  */
 function useEstadosDosNos() {
   const [estados, setEstados] = useState(null);
@@ -51,7 +50,7 @@ export default function App() {
   const [ecra, setEcraEstado] = useState(ECRAS.some(([id]) => id === inicial) ? inicial : 'armazem');
   const setEcra = (id) => { window.location.hash = id; setEcraEstado(id); };
 
-  // Dados partilhados por todos os ecrãs (lidos do primeiro nó vivo: o painel sobrevive à queda de nós)
+  // Dados lidos do primeiro nó vivo: o painel sobrevive à queda do seu próprio nó
   const estados = useEstadosDosNos();
   const vivos = REGIOES.filter((r) => estados && estados[r]);
   const chave = [vivos.join()];
@@ -63,7 +62,6 @@ export default function App() {
 
   const notificacoes = useDetectorEventos({ estados, stock, ordens, fragmentos, regiao });
 
-  // Cor de destaque da região em todo o painel
   const tema = TEMA[regiao || 'GERAL'];
   const raiz = useRef(document.documentElement);
   useEffect(() => {
@@ -74,32 +72,54 @@ export default function App() {
 
   if (regiao === undefined) return null;
   const meuNoEmBaixo = regiao && estados && !estados[regiao];
+  const meuFragmento = regiao && fragmentos && fragmentos.fragmentos.find((f) => f.regiao === regiao);
+  const nomeEcra = ECRAS.find(([id]) => id === ecra)[1];
+  const Icone = regiao ? Warehouse : LayoutDashboard;
 
   return (
-    <>
-      <Cabecalho regiao={regiao} tema={tema} estados={estados} fragmentos={fragmentos}
-                 fornecedor={erroForn ? null : forn} />
-      {meuNoEmBaixo && (
-        <div className="faixa-erro">⚠ Nó {regiao} em baixo — este armazém não pode registar saídas;
-          os dados abaixo vêm dos outros nós e do fragmento {regiao} da base de dados.</div>
-      )}
-      <nav className="separadores" style={{ background: '#fff', borderBottom: '1px solid var(--linha)' }}>
-        {ECRAS.map(([id, nome, Icone]) => (
-          <button key={id} className={ecra === id ? 'activo' : ''} onClick={() => setEcra(id)}>
-            <Icone size={17} />{nome}
-          </button>
-        ))}
-      </nav>
-      <main>
-        <Resumo regiao={regiao} vivos={vivos} stock={stock} ordens={ordens} />
-        {ecra === 'armazem' && <EcraArmazem regiao={regiao} vivos={vivos} stock={stock} movimentos={movimentos} />}
-        {ecra === 'ordens' && <EcraOrdens regiao={regiao} vivos={vivos} ordens={ordens} recarregar={recarregarOrdens} />}
-        {ecra === 'monitor' && <EcraMonitor estados={estados} fragmentos={fragmentos} />}
-        {ecra === 'movimentos' && <EcraMovimentos regiao={regiao} movimentos={movimentos} />}
-        {ecra === 'ficheiros' && <EcraFicheiros vivos={vivos} />}
-        {ecra === 'fornecedor' && <EcraFornecedor vivos={vivos} estado={forn} erro={erroForn} />}
-      </main>
+    <div className="app">
+      <aside className="lateral">
+        <div className="marca">
+          <div className="icone"><Icone size={26} /></div>
+          <div><h1>{tema.nome}</h1><div className="cidade">{tema.cidade}</div></div>
+        </div>
+        {regiao && (
+          <div className="estado-no">
+            <span className={`pastilha ${!estados ? 'aviso' : meuNoEmBaixo ? 'falha' : ''}`}>
+              <span className="ponto" />Nó {regiao}: {!estados ? 'a ligar…' : meuNoEmBaixo ? 'EM BAIXO' : 'activo'}
+            </span>
+            <span className={`pastilha ${!meuFragmento || meuFragmento.emUso !== 'PRIMARIO' ? 'aviso' : ''}`}>
+              <span className="ponto" />BD: {!meuFragmento ? '…' : meuFragmento.emUso === 'PRIMARIO' ? 'primário' : 'réplica promovida'}
+            </span>
+          </div>
+        )}
+        <nav>
+          {ECRAS.map(([id, nome, I]) => (
+            <button key={id} className={ecra === id ? 'activo' : ''} onClick={() => setEcra(id)}>
+              <I size={20} />{nome}
+            </button>
+          ))}
+        </nav>
+        <div className="rodape">SCAD — Sistema de Compras Automáticas Distribuídas</div>
+      </aside>
+
+      <div className="conteudo">
+        <div className="topo">{tema.nome} <span>/</span> <b>{nomeEcra}</b></div>
+        {meuNoEmBaixo && (
+          <div className="faixa-erro">⚠ Nó {regiao} em baixo — a tentar reconectar… (os dados abaixo vêm dos outros
+            nós e do fragmento {regiao} da base de dados; não é possível registar saídas)</div>
+        )}
+        <main>
+          {ecra !== 'monitor' && <Resumo regiao={regiao} vivos={vivos} stock={stock} ordens={ordens} />}
+          {ecra === 'armazem' && <EcraArmazem regiao={regiao} vivos={vivos} stock={stock} movimentos={movimentos} />}
+          {ecra === 'ordens' && <EcraOrdens regiao={regiao} vivos={vivos} ordens={ordens} recarregar={recarregarOrdens} />}
+          {ecra === 'movimentos' && <EcraMovimentos regiao={regiao} movimentos={movimentos} />}
+          {ecra === 'ficheiros' && <EcraFicheiros regiao={regiao} vivos={vivos} ordens={ordens} />}
+          {ecra === 'fornecedor' && <EcraFornecedor vivos={vivos} estado={forn} erro={erroForn} />}
+          {ecra === 'monitor' && <EcraMonitor estados={estados} fragmentos={fragmentos} fornecedor={erroForn ? null : forn} />}
+        </main>
+      </div>
       <Notificacoes lista={notificacoes} />
-    </>
+    </div>
   );
 }
