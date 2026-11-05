@@ -14,7 +14,7 @@ public class RepositorioStock {
 
     private static final RowMapper<Stock> MAPEADOR = (rs, i) -> new Stock(
             rs.getString("armazem_id"), rs.getString("produto_id"), rs.getInt("quantidade"),
-            rs.getInt("minimo"), rs.getInt("maximo"), rs.getInt("em_encomenda"));
+            rs.getInt("minimo"), rs.getInt("maximo"), rs.getInt("em_encomenda"), rs.getInt("reservado"));
 
     private final FragmentosBd fragmentos;
 
@@ -38,17 +38,51 @@ public class RepositorioStock {
     }
 
     /**
-     * Retira {@code quantidade} de forma atómica: a condição {@code quantidade >= ?} e a
-     * actualização são uma só instrução, por isso duas saídas concorrentes nunca deixam o
-     * stock negativo. Devolve vazio se o produto não existir ou o stock não chegar.
+     * Retira {@code quantidade} do stock disponível de forma atómica: a condição e a actualização
+     * são uma só instrução, por isso duas saídas concorrentes nunca deixam o stock negativo nem
+     * tocam no que está reservado. Devolve vazio se o produto não existir ou o disponível não chegar.
      */
     public Optional<Stock> retirar(String produtoId, int quantidade) {
         return fragmentos.jdbcLocal().query("""
                 UPDATE stock
                    SET quantidade = quantidade - ?, actualizado_em = now()
-                 WHERE produto_id = ? AND quantidade >= ?
+                 WHERE produto_id = ? AND quantidade - reservado >= ?
                 RETURNING *
                 """, MAPEADOR, quantidade, produtoId, quantidade).stream().findFirst();
+    }
+
+    /**
+     * Reserva {@code quantidade} para um pedido da loja, só se houver disponível (UPDATE condicional).
+     * Duas reservas concorrentes da última unidade: a segunda espera pelo bloqueio da linha, volta a
+     * avaliar a condição com o valor já actualizado e não altera nada (devolve vazio).
+     */
+    public Optional<Stock> reservar(String produtoId, int quantidade) {
+        return fragmentos.jdbcLocal().query("""
+                UPDATE stock
+                   SET reservado = reservado + ?, actualizado_em = now()
+                 WHERE produto_id = ? AND quantidade - reservado >= ?
+                RETURNING *
+                """, MAPEADOR, quantidade, produtoId, quantidade).stream().findFirst();
+    }
+
+    /** Liberta uma reserva (pedido recusado). */
+    public Optional<Stock> libertarReserva(String produtoId, int quantidade) {
+        return fragmentos.jdbcLocal().query("""
+                UPDATE stock
+                   SET reservado = reservado - ?, actualizado_em = now()
+                 WHERE produto_id = ? AND reservado >= ?
+                RETURNING *
+                """, MAPEADOR, quantidade, produtoId, quantidade).stream().findFirst();
+    }
+
+    /** Entrega uma reserva ao cliente (pedido autorizado): baixa a quantidade e o reservado. */
+    public Optional<Stock> retirarReservado(String produtoId, int quantidade) {
+        return fragmentos.jdbcLocal().query("""
+                UPDATE stock
+                   SET quantidade = quantidade - ?, reservado = reservado - ?, actualizado_em = now()
+                 WHERE produto_id = ? AND reservado >= ?
+                RETURNING *
+                """, MAPEADOR, quantidade, quantidade, produtoId, quantidade).stream().findFirst();
     }
 
     public List<StockDetalhado> listarDetalhado() {
@@ -68,7 +102,7 @@ public class RepositorioStock {
             return new StockDetalhado(s.armazemId(), s.produtoId(), rs.getString("produto_nome"),
                     rs.getString("unidade"), rs.getString("fornecedor_id"), rs.getString("fornecedor_nome"),
                     rs.getString("protocolo"), rs.getInt("lote"),
-                    s.quantidade(), s.minimo(), s.maximo(), s.emEncomenda(), s.nivel());
+                    s.quantidade(), s.minimo(), s.maximo(), s.emEncomenda(), s.reservado(), s.disponivel(), s.nivel());
         });
     }
 }

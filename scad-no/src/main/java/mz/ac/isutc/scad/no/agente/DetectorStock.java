@@ -21,7 +21,7 @@ import mz.ac.isutc.scad.no.stock.Stock;
 /**
  * Agente de stock: detecta níveis que exigem alerta e coloca o alerta na fila local.
  *
- * <p>A detecção corre (1) logo a seguir a cada saída de stock, na mesma transacção do movimento,
+ * <p>A detecção corre (1) logo a seguir a cada saída de stock ou reserva da loja, na mesma transacção,
  * e (2) periodicamente, para apanhar estados que já existiam no arranque (e voltar a pedir a
  * reposição de produtos que continuem abaixo do mínimo, por exemplo depois de um 2PC abortado). Um estado só gera
  * alerta uma vez (ver {@link RepositorioAlertas#ultimoAlertaDescreve}).
@@ -59,11 +59,11 @@ public class DetectorStock {
         if (!s.nivel().requerAlerta() || alertas.ultimoAlertaDescreve(s)) {
             return Optional.empty();
         }
-        Alerta alerta = new Alerta(UUID.randomUUID(), s.armazemId(), s.produtoId(), s.quantidade(),
+        Alerta alerta = new Alerta(UUID.randomUUID(), s.armazemId(), s.produtoId(), s.disponivel(),
                 s.emEncomenda(), s.minimo(), s.nivel(), lamport.tick(), relogio.agora(), null);
         alertas.inserir(alerta);
-        log.info("Alerta {} para {}/{}: quantidade={} em_encomenda={} minimo={}",
-                alerta.nivel(), s.armazemId(), s.produtoId(), s.quantidade(), s.emEncomenda(), s.minimo());
+        log.info("Alerta {} para {}/{}: quantidade={} reservado={} em_encomenda={} minimo={}", alerta.nivel(),
+                s.armazemId(), s.produtoId(), s.quantidade(), s.reservado(), s.emEncomenda(), s.minimo());
         return Optional.of(alerta);
     }
 

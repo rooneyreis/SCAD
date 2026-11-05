@@ -2,6 +2,7 @@ package mz.ac.isutc.scad.no.documentos;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -53,6 +54,8 @@ public final class GeradorFactura {
         linha(dados, "Prazo de entrega", o.prazoEntrega() == null ? "-" : o.prazoEntrega().toString(), subtitulo, normal);
         linha(dados, "Produto", o.produtoNome() + " (" + o.produtoId() + ")", subtitulo, normal);
         linha(dados, "Quantidade total (1 lote)", String.valueOf(o.quantidadeTotal()), subtitulo, normal);
+        linha(dados, "Preço unitário (custo)", Dinheiro.formatar(o.precoUnitario()), subtitulo, normal);
+        linha(dados, "TOTAL", Dinheiro.formatar(o.total()), subtitulo, subtitulo);
         linha(dados, "Armazém que disparou", o.armazemOrigem(), subtitulo, normal);
         linha(dados, "Nó coordenador (2PC)", o.coordenador(), subtitulo, normal);
         linha(dados, "Data da ordem (hora corrigida)", DATA_HORA.format(o.tsCorrigido()), subtitulo, normal);
@@ -62,17 +65,23 @@ public final class GeradorFactura {
         doc.add(new Paragraph(" "));
         doc.add(new Paragraph("Repartição da entrega pelos armazéns", subtitulo));
         doc.add(new Paragraph(" "));
-        PdfPTable linhas = new PdfPTable(new float[] {3f, 1.5f});
-        linhas.setWidthPercentage(60);
+        PdfPTable linhas = new PdfPTable(new float[] {2.2f, 1.3f, 2f, 2.2f});
+        linhas.setWidthPercentage(100);
         linhas.setHorizontalAlignment(Element.ALIGN_LEFT);
         cabecalho(linhas, "Armazém");
         cabecalho(linhas, "Quantidade");
+        cabecalho(linhas, "Preço unitário");
+        cabecalho(linhas, "Subtotal");
         for (Map.Entry<String, Integer> l : o.linhas().entrySet()) {
             linhas.addCell(new Phrase(l.getKey(), normal));
-            PdfPCell q = new PdfPCell(new Phrase(String.valueOf(l.getValue()), normal));
-            q.setHorizontalAlignment(Element.ALIGN_RIGHT);
-            linhas.addCell(q);
+            linhas.addCell(aDireita(String.valueOf(l.getValue()), normal));
+            linhas.addCell(aDireita(Dinheiro.formatar(o.precoUnitario()), normal));
+            linhas.addCell(aDireita(Dinheiro.formatar(o.precoUnitario().multiply(BigDecimal.valueOf(l.getValue()))), normal));
         }
+        PdfPCell rotuloTotal = new PdfPCell(new Phrase("TOTAL", subtitulo));
+        rotuloTotal.setColspan(3);
+        linhas.addCell(rotuloTotal);
+        linhas.addCell(aDireita(Dinheiro.formatar(o.total()), subtitulo));
         doc.add(linhas);
 
         doc.add(new Paragraph(" "));
@@ -89,6 +98,12 @@ public final class GeradorFactura {
         b.setBorderColor(Color.LIGHT_GRAY);
         t.addCell(a);
         t.addCell(b);
+    }
+
+    private static PdfPCell aDireita(String texto, Font fonte) {
+        PdfPCell c = new PdfPCell(new Phrase(texto, fonte));
+        c.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        return c;
     }
 
     private static void cabecalho(PdfPTable t, String texto) {

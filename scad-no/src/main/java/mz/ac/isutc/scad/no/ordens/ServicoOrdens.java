@@ -57,10 +57,10 @@ public class ServicoOrdens {
         Map<String, TrabalhoParticipante> trabalho = new LinkedHashMap<>();
         reparticao.forEach((armazem, quantidade) -> trabalho.put(armazem, con -> {
             actualizar(con, """
-                    INSERT INTO ordem_compra (id, fornecedor_id, produto_id, quantidade_total, estado, armazem_origem,
-                                              coordenador, ts_lamport, ts_corrigido)
-                    VALUES (?, ?, ?, ?, 'PENDENTE_ENVIO', ?, ?, ?, ?)
-                    """, 1, ordemId, produto.fornecedorId(), produto.id(), total, armazemOrigem,
+                    INSERT INTO ordem_compra (id, fornecedor_id, produto_id, quantidade_total, preco_unitario, estado,
+                                              armazem_origem, coordenador, ts_lamport, ts_corrigido)
+                    VALUES (?, ?, ?, ?, ?, 'PENDENTE_ENVIO', ?, ?, ?, ?)
+                    """, 1, ordemId, produto.fornecedorId(), produto.id(), total, produto.precoCusto(), armazemOrigem,
                     fragmentos.regiaoLocal(), ts, Timestamp.from(hora));
             actualizar(con, "INSERT INTO linha_ordem (ordem_id, armazem_id, quantidade) VALUES (?, ?, ?)",
                     1, ordemId, armazem, quantidade);

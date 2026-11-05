@@ -23,7 +23,7 @@ class StockTest {
             "97,  0,   80,  NORMAL"     // 97 > 96
     })
     void classificaNivel(int quantidade, int emEncomenda, int minimo, NivelStock esperado) {
-        assertEquals(esperado, NivelStock.classificar(quantidade, emEncomenda, minimo));
+        assertEquals(esperado, new Stock("NORTE", "P", quantidade, minimo, minimo * 4, emEncomenda).nivel());
     }
 
     @Test
@@ -32,10 +32,24 @@ class StockTest {
         assertFalse(new Stock("NORTE", "ARROZ-25", 95, 100, 400, 200).precisaReposicao());
     }
 
+    /** Nova condição (loja): (quantidade − reservado) + em_encomenda &lt; mínimo. */
+    @Test
+    void condicaoDeReposicaoDescontaOReservado() {
+        Stock s = new Stock("NORTE", "ARROZ-25", 105, 100, 400, 0, 6);
+        assertEquals(99, s.disponivel());
+        assertEquals(99, s.posicao());
+        assertTrue(s.precisaReposicao());
+        assertEquals(NivelStock.CRITICO, s.nivel(), "a prateleira tem 105, mas 6 já estão vendidos");
+        assertFalse(new Stock("NORTE", "ARROZ-25", 105, 100, 400, 0, 5).precisaReposicao());
+        assertFalse(new Stock("NORTE", "ARROZ-25", 105, 100, 400, 50, 6).precisaReposicao());
+    }
+
     @Test
     void necessidadeEhOQueFaltaParaOMaximo() {
         assertEquals(305, new Stock("NORTE", "ARROZ-25", 95, 100, 400, 0).necessidade());
         assertEquals(105, new Stock("NORTE", "ARROZ-25", 95, 100, 400, 200).necessidade());
         assertEquals(0, new Stock("NORTE", "ARROZ-25", 450, 100, 400, 0).necessidade());
+        // a necessidade usada na repartição também desconta o reservado
+        assertEquals(355, new Stock("NORTE", "ARROZ-25", 95, 100, 400, 0, 50).necessidade());
     }
 }

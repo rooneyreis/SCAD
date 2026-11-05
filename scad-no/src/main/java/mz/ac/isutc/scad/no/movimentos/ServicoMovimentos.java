@@ -78,7 +78,7 @@ public class ServicoMovimentos {
 
     private RuntimeException motivoFalha(PedidoSaida pedido) {
         return stock.procurar(pedido.produtoId())
-                .<RuntimeException>map(s -> new StockInsuficiente(pedido.produtoId(), pedido.quantidade(), s.quantidade()))
+                .<RuntimeException>map(s -> new StockInsuficiente(pedido.produtoId(), pedido.quantidade(), s.disponivel()))
                 .orElseGet(() -> new ProdutoNaoEncontrado(pedido.produtoId(), pedido.armazemId()));
     }
 }

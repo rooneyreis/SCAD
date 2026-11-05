@@ -6,6 +6,7 @@
 -- o predicado de fragmentação é imposto por CHECK em 04-fragmento.sh):
 --   stock, movimento_stock, linha_ordem, alerta.
 -- ordem_compra: o cabeçalho existe em todos os fragmentos que participam na ordem (2PC).
+-- Loja (pedidos de clientes, reservas e preços): migração em 05-loja.sh.
 -- =====================================================================================
 
 CREATE TABLE armazem (

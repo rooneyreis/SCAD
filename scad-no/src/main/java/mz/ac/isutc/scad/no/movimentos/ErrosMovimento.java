@@ -13,8 +13,8 @@ public final class ErrosMovimento {
     }
 
     public static class StockInsuficiente extends RuntimeException {
-        public StockInsuficiente(String produtoId, int pedido, int existente) {
-            super("Stock insuficiente de " + produtoId + ": pedido " + pedido + ", existente " + existente);
+        public StockInsuficiente(String produtoId, int pedido, int disponivel) {
+            super("Stock insuficiente de " + produtoId + ": pedido " + pedido + ", disponível " + disponivel);
         }
     }
 

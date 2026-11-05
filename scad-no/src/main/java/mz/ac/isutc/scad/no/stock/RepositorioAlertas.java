@@ -55,7 +55,7 @@ public class RepositorioAlertas {
 
     /**
      * true se o último alerta deste produto já descreve exactamente este estado
-     * (mesma quantidade e mesmo em_encomenda): evita alertas repetidos.
+     * (mesma quantidade disponível e mesmo em_encomenda): evita alertas repetidos.
      */
     public boolean ultimoAlertaDescreve(Stock s) {
         List<Boolean> r = fragmentos.jdbcLocal().query("""
@@ -64,7 +64,7 @@ public class RepositorioAlertas {
                  WHERE produto_id = ?
                  ORDER BY ts_lamport DESC
                  LIMIT 1
-                """, (rs, i) -> rs.getBoolean(1), s.quantidade(), s.emEncomenda(), s.produtoId());
+                """, (rs, i) -> rs.getBoolean(1), s.disponivel(), s.emEncomenda(), s.produtoId());
         return !r.isEmpty() && r.get(0);
     }
 

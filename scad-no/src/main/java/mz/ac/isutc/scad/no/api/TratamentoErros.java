@@ -16,6 +16,9 @@ import mz.ac.isutc.scad.no.movimentos.ErrosMovimento.ArmazemForaDoFragmento;
 import mz.ac.isutc.scad.no.movimentos.ErrosMovimento.ProdutoNaoEncontrado;
 import mz.ac.isutc.scad.no.movimentos.ErrosMovimento.StockInsuficiente;
 import mz.ac.isutc.scad.no.exclusao.ExclusaoMutua.ExclusaoIndisponivelException;
+import mz.ac.isutc.scad.no.loja.ErrosLoja.PedidoInexistente;
+import mz.ac.isutc.scad.no.loja.ErrosLoja.PedidoJaDecidido;
+import mz.ac.isutc.scad.no.loja.ErrosLoja.StockIndisponivel;
 import mz.ac.isutc.scad.no.ordens.ServicoOrdens.EstadoInvalidoException;
 import mz.ac.isutc.scad.no.ordens.ServicoOrdens.OrdemInexistenteException;
 
@@ -33,6 +36,25 @@ public class TratamentoErros {
     @ExceptionHandler(StockInsuficiente.class)
     ProblemDetail stockInsuficiente(StockInsuficiente e) {
         return problema(HttpStatus.CONFLICT, "Stock insuficiente", e.getMessage());
+    }
+
+    /** Compra na loja sem stock disponível (ex.: outro cliente comprou a última unidade primeiro). */
+    @ExceptionHandler(StockIndisponivel.class)
+    ProblemDetail stockIndisponivel(StockIndisponivel e) {
+        ProblemDetail p = problema(HttpStatus.CONFLICT, "Sem stock disponível", e.getMessage());
+        p.setProperty("produtoId", e.produtoId());
+        p.setProperty("disponivel", e.disponivel());
+        return p;
+    }
+
+    @ExceptionHandler(PedidoInexistente.class)
+    ProblemDetail pedidoInexistente(PedidoInexistente e) {
+        return problema(HttpStatus.NOT_FOUND, "Pedido não encontrado", e.getMessage());
+    }
+
+    @ExceptionHandler(PedidoJaDecidido.class)
+    ProblemDetail pedidoJaDecidido(PedidoJaDecidido e) {
+        return problema(HttpStatus.CONFLICT, "Pedido já decidido", e.getMessage());
     }
 
     @ExceptionHandler(ArmazemForaDoFragmento.class)

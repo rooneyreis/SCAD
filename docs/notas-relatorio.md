@@ -347,3 +347,51 @@ O backend classifica o stock por `quantidade + em_encomenda` (evita encomendar d
 No painel isso fazia o crítico desaparecer em 1–2 s (a ordem é criada logo). O painel passou a mostrar o
 **nível da prateleira** (só a quantidade física, mesmos limiares), indicando quantos produtos abaixo do mínimo
 já têm encomenda a caminho. A lógica de reposição não mudou.
+
+## Loja (pedidos de clientes) — Fase A, backend
+
+### Reserva de stock
+- `stock.reservado` (fragmentado por região); **disponível = quantidade − reservado**. A compra cria o
+  `pedido_cliente` (PENDENTE) e reserva o stock **numa só transacção local** no fragmento da cidade escolhida;
+  se um dos produtos não tiver disponível suficiente, a transacção inteira é desfeita (nada fica reservado).
+- A reserva é um `UPDATE ... SET reservado = reservado + n WHERE quantidade − reservado >= n` (UPDATE
+  condicional). Com duas compras concorrentes da última unidade, a segunda fica bloqueada no lock da linha
+  e, quando o obtém, o PostgreSQL (READ COMMITTED) **volta a avaliar o WHERE** com o valor já actualizado:
+  0 linhas → `StockIndisponivel` → HTTP 409 com uma mensagem clara. Teste: 8 clientes em simultâneo pela
+  última unidade → exactamente 1 sucesso (`ServicoLojaIT`); na stack real: 1 × 201 e 5 × 409.
+- Produtos de um mesmo pedido são reservados por ordem de id: evita deadlocks entre pedidos concorrentes.
+- A saída manual ("Registar saída") passou a só poder retirar o **disponível** (não toca no reservado).
+
+### Porque não é preciso Ricart-Agrawala (nem 2PC) para a última unidade
+Um pedido pertence a **um só armazém** e o stock de um armazém vive **num só fragmento** (com um único
+primário a aceitar escritas). A disputa pela última unidade é, portanto, local a uma base de dados, e o
+controlo de concorrência do próprio PostgreSQL (lock de linha + UPDATE condicional) resolve-a com
+atomicidade e isolamento. A exclusão mútua distribuída só é necessária quando vários nós decidem sobre um
+recurso partilhado **sem** um ponto de serialização comum: é o caso da ordem consolidada ao fornecedor
+(cada nó lê o stock de todos os fragmentos e decide se cria a ordem). Usar RA aqui só acrescentaria
+mensagens e latência; usar 2PC também não, porque só há um participante.
+
+### Autorizar / recusar
+- **Autorizar** = o mesmo que "Registar saída": movimento `SAIDA`, motivo `VENDA`, origem `LOJA`, com
+  carimbo de Lamport e hora corrigida; baixa `quantidade` e `reservado` na mesma transacção. Gera o recibo
+  PDF (OpenPDF) e grava-o no HDFS em `/scad/recibos/AAAA/MM/PED-xxx.pdf` (via fila local store-and-forward).
+- **Recusar** (com motivo) liberta a reserva.
+- Só se decide um pedido PENDENTE (`UPDATE ... WHERE estado = 'PENDENTE'`): dois operadores a decidir ao
+  mesmo tempo → o segundo recebe 409 "já está AUTORIZADO/RECUSADO"; o stock nunca sai duas vezes.
+
+### Nova condição de reposição
+- **(quantidade − reservado) + em_encomenda < mínimo**; a necessidade usada na repartição do lote também
+  desconta o reservado (`necessidade = máximo − ((q − res) + enc)`).
+- Consequência: autorizar não muda o disponível (quantidade e reservado descem juntos). Por isso a condição é
+  avaliada **na compra** (decisão do grupo): se uma compra deixa o disponível abaixo do mínimo, a reposição
+  dispara logo. Se o pedido for depois recusado, a ordem pode já existir (fica stock a mais, que é o menor dos
+  males). Dentro da secção crítica a condição é re-verificada: se a reserva já foi libertada entretanto, não
+  se cria ordem (observado na stack real).
+
+### Preços e migração
+- `produto.preco_venda` e `preco_custo` (MZN, catálogo replicado). A ordem de compra guarda o
+  `preco_unitario` de custo no momento da criação (fotografia; o catálogo pode mudar) e a factura PDF mostra
+  quantidade × preço e total. O contrato SOAP/REST com o fornecedor **não** mudou (decisão do grupo).
+- Migração: `db/init/05-loja.sh`, idempotente. Corre sozinha numa BD nova e serve para migrar uma instalação
+  existente sem perder dados (`deploy/migrar-loja.ps1`). Só se aplica nos primários: as réplicas recebem as
+  alterações pela streaming replication (verificado).

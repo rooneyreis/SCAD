@@ -32,14 +32,15 @@ public class RepositorioOrdens {
         Timestamp actualizado = rs.getTimestamp("actualizado_em");
         return new OrdemCompra(rs.getString("id"), rs.getString("fornecedor_id"), rs.getString("fornecedor_nome"),
                 rs.getString("protocolo"), rs.getString("produto_id"), rs.getString("produto_nome"),
-                rs.getInt("quantidade_total"), Estado.valueOf(rs.getString("estado")), rs.getString("armazem_origem"),
+                rs.getInt("quantidade_total"), rs.getBigDecimal("preco_efectivo"), Estado.valueOf(rs.getString("estado")), rs.getString("armazem_origem"),
                 rs.getString("coordenador"), rs.getString("confirmacao"), prazo == null ? null : prazo.toLocalDate(),
                 rs.getLong("ts_lamport"), rs.getTimestamp("ts_corrigido").toInstant(),
                 actualizado == null ? null : actualizado.toInstant(), Map.of());
     };
 
     private static final String SELECT_CABECALHO = """
-            SELECT o.*, f.nome AS fornecedor_nome, f.protocolo, p.nome AS produto_nome
+            SELECT o.*, f.nome AS fornecedor_nome, f.protocolo, p.nome AS produto_nome,
+                   COALESCE(o.preco_unitario, p.preco_custo) AS preco_efectivo   -- ordens anteriores à loja
               FROM ordem_compra o
               JOIN fornecedor f ON f.id = o.fornecedor_id
               JOIN produto p    ON p.id = o.produto_id

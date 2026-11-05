@@ -11,11 +11,12 @@ import mz.ac.isutc.scad.no.stock.Stock;
 /**
  * Repartição de uma ordem consolidada (sempre exactamente 1 lote) pelos armazéns.
  *
- * <p>{@code necessidade = maximo − (quantidade + em_encomenda)}
+ * <p>{@code necessidade = maximo − posicao}, com {@code posicao = (quantidade − reservado) + em_encomenda}
+ * (o stock reservado por pedidos da loja já não conta como disponível).
  * <ol>
  *   <li><b>Prioridade 1</b>: o armazém que disparou recebe a sua necessidade (ou o lote todo, se não chegar).</li>
- *   <li><b>Prioridade 2</b>: armazéns "perto do mínimo" ({@code q + enc ≤ 1,2 × min}), do mais vazio para
- *       o menos vazio (menor {@code (q + enc) / min} primeiro); cada um recebe a sua necessidade até acabar o lote.</li>
+ *   <li><b>Prioridade 2</b>: armazéns "perto do mínimo" ({@code posicao ≤ 1,2 × min}), do mais vazio para
+ *       o menos vazio (menor {@code posicao / min} primeiro); cada um recebe a sua necessidade até acabar o lote.</li>
  *   <li><b>Prioridade 3</b>: o que sobrar reparte-se pelos restantes, proporcionalmente à necessidade,
  *       sem passar do máximo; arredondamento para baixo, e o resto da divisão vai para o que disparou.</li>
  *   <li>Se todos ficarem no máximo e ainda sobrar lote, o excesso vai para o que disparou (mesmo passando o máximo).</li>
@@ -92,8 +93,8 @@ public final class Reparticao {
         return resultado;
     }
 
-    /** (q + enc) / min como fracção comparável sem vírgula flutuante. */
+    /** posicao / min (quanto menor, mais vazio está o armazém). */
     private static double ocupacaoRelativa(Stock s) {
-        return s.minimo() == 0 ? Double.MAX_VALUE : (double) s.disponivel() / s.minimo();
+        return s.minimo() == 0 ? Double.MAX_VALUE : (double) s.posicao() / s.minimo();
     }
 }
