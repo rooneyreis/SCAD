@@ -395,3 +395,29 @@ mensagens e latência; usar 2PC também não, porque só há um participante.
 - Migração: `db/init/05-loja.sh`, idempotente. Corre sozinha numa BD nova e serve para migrar uma instalação
   existente sem perder dados (`deploy/migrar-loja.ps1`). Só se aplica nos primários: as réplicas recebem as
   alterações pela streaming replication (verificado).
+
+## Loja (pedidos de clientes) — Fase B, interfaces
+
+- **Loja** = nova app React (Vite) servida por um nginx próprio na porta **8085** (a 8084, sugerida, estava ocupada
+  no PC de demonstração pelo `plasticd` — Plastic SCM). Estilo de loja online claro, diferente dos painéis escuros.
+- **Segurança do proxy**: o nginx da loja só encaminha `/api/<região>/loja/...` para o nó da região; a API de
+  autorização (`/api/pedidos/...`) e o resto da API dos nós não são acessíveis a partir da loja (404). O recibo PDF
+  é servido por `GET /api/loja/pedidos/{id}/recibo`, que só devolve o recibo **desse** pedido (em vez de expor a
+  leitura genérica de ficheiros do HDFS).
+- **Tempo real por polling (1,5 s)**, não SSE: catálogo da loja, página "o meu pedido" e pedidos no painel. Simples,
+  passa por qualquer proxy, e cada leitura é independente (um nó em baixo só afecta os pedidos a esse nó). Com SSE
+  teríamos de manter uma ligação aberta por cliente a cada nó e reconectar após falhas. Latência observada: a outra
+  janela vê o disponível descer em < 1,5 s; o cliente vê "Autorizado" < 1,5 s depois do clique no painel.
+- **A compra vai sempre ao nó da cidade escolhida** (é lá que está o fragmento a reservar); o catálogo e o estado do
+  pedido lêem-se de qualquer nó (os fragmentos são acessíveis a todos), por isso "o meu pedido" continua a funcionar
+  mesmo com o nó da cidade em baixo.
+- **Cidade indisponível**: o catálogo marca uma cidade como fechada se o detector de falhas der o nó como morto ou se o
+  fragmento não responder; a loja mostra "Indisponível de momento" e as outras cidades continuam a vender (~4 s).
+- **Carrinho vs. tempo real**: há um carrinho por cidade (um pedido = um armazém). Se o disponível descer abaixo do que
+  está no carrinho (outro cliente comprou), a quantidade é ajustada sozinha, com aviso. A verificação final é sempre a
+  do servidor (UPDATE condicional): se dois clientes pagarem ao mesmo tempo, o segundo recebe a mensagem 409.
+- **Painel**: separador "Pedidos de clientes" (contador de pendentes na barra lateral, notificação "Novo pedido",
+  Autorizar / Recusar com motivos rápidos, histórico com recibo); cartões "pedidos pendentes" e "vendas de hoje (MZN)"
+  (dia de Maputo, pela hora corrigida); tabela de stock com Reservado e Disponível; "Registar saída" passou a ser a
+  saída **manual** (quebras, perdas). Ordens com preço unitário de custo e valor total.
+- `deploy/demo-ultima-unidade.ps1`: demonstração ao vivo da concorrência (pedidos HTTP em paralelo com `HttpClient`).

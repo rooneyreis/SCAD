@@ -209,6 +209,15 @@ services:
     ports: ["0.0.0.0:8080:8080", "0.0.0.0:8081:8081", "0.0.0.0:8082:8082", "0.0.0.0:8083:8083"]
     restart: unless-stopped
 
+  # Loja (clientes) na porta 8085 (a 8084 pode estar ocupada no PC de demonstração, ex.: Plastic SCM).
+  # O nginx da loja só expõe a API pública /api/loja de cada nó.
+  loja:
+    build:
+      context: ../../loja
+    image: scad/loja:dev
+    ports: ["0.0.0.0:8085:8085"]
+    restart: unless-stopped
+
   # ---------------- Nós regionais (desvios de relógio simulados diferentes) ----------------
   no-norte:
     <<: *no

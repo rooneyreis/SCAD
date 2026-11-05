@@ -30,3 +30,7 @@ export function nivelPrateleira(l) {
   return 'NORMAL';
 }
 export const abaixoDoMinimo = (l) => nivelPrateleira(l) === 'CRITICO' || nivelPrateleira(l) === 'RUPTURA';
+
+/** Valor em meticais: 1 450,00 MZN. */
+export const mzn = (v) => (v == null ? '—'
+  : `${Number(v).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MZN`);

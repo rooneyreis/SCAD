@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Activity, FileText, LayoutDashboard, ListOrdered, Package, Receipt, Truck, Warehouse } from 'lucide-react';
-import { REGIOES, deQualquerNo, doNo, fornecedor, regiaoDoPainel } from './api.js';
+import { Activity, FileText, LayoutDashboard, ListOrdered, Package, Receipt, ShoppingBag, Truck, Warehouse } from 'lucide-react';
+import { REGIOES, deQualquerNo, deTodosOsNos, doNo, fornecedor, regiaoDoPainel } from './api.js';
 import { usePolling } from './usePolling.js';
 import { TEMA } from './tema.js';
 import Resumo from './componentes/Resumo.jsx';
@@ -11,9 +11,11 @@ import EcraMonitor from './ecras/EcraMonitor.jsx';
 import EcraFicheiros from './ecras/EcraFicheiros.jsx';
 import EcraFornecedor from './ecras/EcraFornecedor.jsx';
 import EcraMovimentos from './ecras/EcraMovimentos.jsx';
+import EcraPedidos from './ecras/EcraPedidos.jsx';
 
 const ECRAS = [
   ['armazem', 'Stock', Package],
+  ['pedidos', 'Pedidos de clientes', ShoppingBag],
   ['ordens', 'Ordens de compra', Receipt],
   ['movimentos', 'Movimentos', ListOrdered],
   ['ficheiros', 'Ficheiros HDFS', FileText],
@@ -41,6 +43,23 @@ function useEstadosDosNos() {
   return estados;
 }
 
+/**
+ * Pedidos da loja e resumo (pendentes, vendas de hoje): do nó deste armazém, ou de todos os nós
+ * na vista geral. Lidos a cada 1,5 s: um pedido novo aparece sozinho no painel.
+ */
+function lerPedidos(regiao) {
+  if (regiao) return doNo(regiao, '/pedidos?limite=100', 2500);
+  return deTodosOsNos('/pedidos?limite=100').then((porNo) => Object.values(porNo).flatMap((l) => l || [])
+    .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm)));
+}
+
+function lerResumoLoja(regiao) {
+  if (regiao) return doNo(regiao, '/pedidos/resumo', 2500);
+  return deTodosOsNos('/pedidos/resumo').then((porNo) => Object.values(porNo).filter(Boolean).reduce(
+    (t, r) => ({ pendentes: t.pendentes + r.pendentes, vendasHoje: t.vendasHoje + r.vendasHoje }),
+    { pendentes: 0, vendasHoje: 0 }));
+}
+
 export default function App() {
   // Região deste painel: 8081 NORTE, 8082 CENTRO, 8083 SUL; 8080 = vista geral (null)
   const [regiao, setRegiao] = useState(undefined);
@@ -59,8 +78,10 @@ export default function App() {
   const [movimentos] = usePolling(() => deQualquerNo('/global/movimentos?limite=300', vivos), 2000, chave);
   const [fragmentos] = usePolling(() => deQualquerNo('/fragmentos', vivos), 2000, chave);
   const [forn, erroForn] = usePolling(() => fornecedor.estado(), 2000);
+  const [pedidos, , recarregarPedidos] = usePolling(() => (regiao === undefined ? null : lerPedidos(regiao)), 1500, [regiao]);
+  const [resumoLoja, , recarregarResumo] = usePolling(() => (regiao === undefined ? null : lerResumoLoja(regiao)), 1500, [regiao]);
 
-  const notificacoes = useDetectorEventos({ estados, stock, ordens, fragmentos, regiao });
+  const notificacoes = useDetectorEventos({ estados, stock, ordens, fragmentos, pedidos, regiao });
 
   const tema = TEMA[regiao || 'GERAL'];
   const raiz = useRef(document.documentElement);
@@ -75,6 +96,7 @@ export default function App() {
   const meuFragmento = regiao && fragmentos && fragmentos.fragmentos.find((f) => f.regiao === regiao);
   const nomeEcra = ECRAS.find(([id]) => id === ecra)[1];
   const Icone = regiao ? Warehouse : LayoutDashboard;
+  const pendentes = (pedidos || []).filter((p) => p.estado === 'PENDENTE').length;
 
   return (
     <div className="app">
@@ -97,6 +119,7 @@ export default function App() {
           {ECRAS.map(([id, nome, I]) => (
             <button key={id} className={ecra === id ? 'activo' : ''} onClick={() => setEcra(id)}>
               <I size={20} />{nome}
+              {id === 'pedidos' && pendentes > 0 && <span className="contador">{pendentes}</span>}
             </button>
           ))}
         </nav>
@@ -110,8 +133,10 @@ export default function App() {
             nós e do fragmento {regiao} da base de dados; não é possível registar saídas)</div>
         )}
         <main>
-          {ecra !== 'monitor' && <Resumo regiao={regiao} vivos={vivos} stock={stock} ordens={ordens} />}
+          {ecra !== 'monitor' && <Resumo regiao={regiao} vivos={vivos} stock={stock} ordens={ordens} loja={resumoLoja} />}
           {ecra === 'armazem' && <EcraArmazem regiao={regiao} vivos={vivos} stock={stock} movimentos={movimentos} />}
+          {ecra === 'pedidos' && <EcraPedidos regiao={regiao} vivos={vivos} pedidos={pedidos}
+                                              recarregar={() => { recarregarPedidos(); recarregarResumo(); }} />}
           {ecra === 'ordens' && <EcraOrdens regiao={regiao} vivos={vivos} ordens={ordens} recarregar={recarregarOrdens} />}
           {ecra === 'movimentos' && <EcraMovimentos regiao={regiao} movimentos={movimentos} />}
           {ecra === 'ficheiros' && <EcraFicheiros regiao={regiao} vivos={vivos} ordens={ordens} />}

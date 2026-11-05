@@ -28,7 +28,7 @@ export default function EcraArmazem({ regiao, vivos, stock, movimentos }) {
   const linhaProduto = linhas.find((l) => l.produtoId === produto);
   const movsProduto = (movimentos || []).filter((m) => m.armazemId === armazem && m.produtoId === produto);
 
-  const [form, setForm] = useState({ produtoId: 'ARROZ-25', quantidade: 10, motivo: 'Venda' });
+  const [form, setForm] = useState({ produtoId: 'ARROZ-25', quantidade: 10, motivo: 'Quebra' });
   const [msg, setMsg] = useState(null);
   const [ocupado, setOcupado] = useState(false);
 
@@ -52,7 +52,8 @@ export default function EcraArmazem({ regiao, vivos, stock, movimentos }) {
   return (
     <>
       <div className="cartao">
-        <h2><PackageMinus size={20} />Registar saída de stock — {armazem}
+        <h2><PackageMinus size={20} />Registar saída manual — {armazem}
+          {regiao && <span className="extra">quebras, perdas, consumo interno… (as vendas da loja autorizam-se em Pedidos de clientes)</span>}
           {!regiao && (
             <span className="extra">
               <select value={escolhido} onChange={(e) => setEscolhido(e.target.value)}>
@@ -104,7 +105,7 @@ export default function EcraArmazem({ regiao, vivos, stock, movimentos }) {
         <h2><Table2 size={20} />Stock do armazém {armazem}</h2>
         <table>
           <thead><tr><th>Produto</th><th>Fornecedor</th><th className="num">Quantidade</th><th className="num">Mínimo</th>
-            <th className="num">Máximo</th><th className="num">Em encomenda</th><th>Prateleira</th><th /></tr></thead>
+            <th className="num">Máximo</th><th className="num">Reservado</th><th className="num">Disponível</th><th className="num">Em encomenda</th><th>Prateleira</th><th /></tr></thead>
           <tbody>
             {linhas.map((s) => (
               <tr key={s.produtoId}>
@@ -113,6 +114,8 @@ export default function EcraArmazem({ regiao, vivos, stock, movimentos }) {
                 <td className="num"><b>{s.quantidade}</b></td>
                 <td className="num">{s.minimo}</td>
                 <td className="num">{s.maximo}</td>
+                <td className="num">{s.reservado || '—'}</td>
+                <td className="num"><b>{s.disponivel}</b></td>
                 <td className="num">{s.emEncomenda || '—'}</td>
                 <td style={{ width: 200 }}><Barra s={s} /></td>
                 <td><span className={`etiqueta ${nivelPrateleira(s)}`}>{nivelPrateleira(s)}</span></td>

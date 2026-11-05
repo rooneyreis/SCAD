@@ -44,11 +44,14 @@ main { padding: 22px 26px 50px; max-width: 1600px; }
 .pastilha small { font-weight: 500; color: var(--suave); }
 
 /* ---------- cartões ---------- */
-.resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 18px; }
-.kpi { background: var(--cartao); border-radius: var(--raio); padding: 18px; display: flex; align-items: center; gap: 16px;
+.resumo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+@media (min-width: 1700px) { .resumo { grid-template-columns: repeat(6, 1fr); } }
+.kpi { background: var(--cartao); border-radius: var(--raio); padding: 16px; display: flex; align-items: center; gap: 12px;
   border: 1px solid var(--linha); }
-.kpi .icone { width: 50px; height: 50px; border-radius: 14px; display: grid; place-items: center; }
-.kpi .valor { font-size: 34px; font-weight: 800; line-height: 1; }
+.kpi .icone { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; flex-shrink: 0; }
+.kpi > div:last-child { min-width: 0; }
+.kpi .valor { font-size: 30px; font-weight: 800; line-height: 1; white-space: nowrap; }
+.kpi .valor small { font-size: 14px; font-weight: 700; color: var(--suave); margin-left: 5px; }
 .kpi .rotulo { color: var(--suave); font-size: 15px; margin-top: 6px; }
 .kpi .nota { color: var(--destaque); font-size: 13px; font-weight: 600; margin-top: 4px; }
 
@@ -64,6 +67,7 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 10px; border-bottom: 1px solid var(--linha); vertical-align: middle; }
 th { font-size: 13px; text-transform: uppercase; color: var(--suave); letter-spacing: .5px; font-weight: 700; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.mono b, td.num b { white-space: nowrap; }
 tr.destaque td { background: rgba(234,179,8,.08); }
 
 .etiqueta { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap;
@@ -130,3 +134,23 @@ a { color: var(--destaque); font-weight: 700; }
 .no-ra.DENTRO { border-color: var(--verde); background: rgba(34,197,94,.1); }
 .no-ra.PEDINDO { border-color: var(--amarelo); background: rgba(234,179,8,.1); }
 .no-ra.MORTO { border-color: rgba(239,68,68,.5); background: rgba(239,68,68,.1); color: #fecaca; }
+
+/* ---------- pedidos de clientes (loja) ---------- */
+.lateral nav .contador { margin-left: auto; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 999px;
+  background: var(--vermelho); color: #fff; font-size: 13px; font-weight: 800; display: grid; place-items: center; }
+.pedidos { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); }
+.pedido { background: var(--cartao2); border: 1px solid var(--linha); border-left: 4px solid var(--destaque);
+  border-radius: 14px; padding: 14px 16px; animation: entra .25s ease-out; }
+.pedido-cab { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.pedido-total { font-size: 24px; font-weight: 800; white-space: nowrap; }
+.pedido-cliente { margin: 10px 0 6px; font-size: 17px; }
+table.compacta td { padding: 6px 4px; font-size: 15px; }
+.recusa { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--linha); }
+.chip { border: 1px solid var(--linha); background: transparent; color: var(--suave); border-radius: 999px;
+  padding: 6px 11px; font-size: 13px; cursor: pointer; }
+.chip.activo, .chip:hover { border-color: var(--vermelho); color: #fca5a5; }
+button.botao.autorizar { background: var(--verde); border-color: var(--verde); color: #0d0f13; }
+button.botao.recusar { color: #fca5a5; border-color: rgba(239,68,68,.6); }
+.etiqueta.AUTORIZADO { background: rgba(34,197,94,.15); color: #86efac; border-color: rgba(34,197,94,.4); }
+.etiqueta.PENDENTE { background: rgba(234,179,8,.15); color: #fde047; border-color: rgba(234,179,8,.4); }
+.etiqueta.RECUSADO { background: rgba(239,68,68,.15); color: #fca5a5; border-color: rgba(239,68,68,.45); }

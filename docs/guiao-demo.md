@@ -21,6 +21,7 @@ $C = "docker compose -f deploy/local/docker-compose.yml"     # atalho usado abai
 | `http://<IP do PC>:8082` | **painel do Armazém CENTRO** (cor violeta) |
 | `http://<IP do PC>:8083` | **painel do Armazém SUL** (cor laranja) |
 | `http://<IP do PC>:8080` | vista geral (escolhe-se o armazém) |
+| `http://<IP do PC>:8085` | **LOJA** (clientes): Mercado SCAD. *Não é a 8084: no PC do grupo essa porta está ocupada pelo Plastic SCM.* |
 | `localhost:18081 / 18082 / 18083` | APIs dos nós (só para comandos de PowerShell) |
 
 O IP do PC vê-se com `ipconfig` (Wi-Fi → Endereço IPv4). No ensaio era **192.168.100.23**, mas pode mudar.
@@ -37,7 +38,7 @@ O IP do PC vê-se com `ipconfig` (Wi-Fi → Endereço IPv4). No ensaio era **192
    ```powershell
    powershell -ExecutionPolicy Bypass -File deploy\abrir-porta-painel.ps1
    ```
-   Abre só as portas 8080–8083 e mostra os endereços a dar aos colegas.
+   Abre só as portas 8080–8083 e **8085** (loja), em todos os perfis de rede (`-Profile Any`), e mostra os endereços.
 4. **Cada portátil abre o painel do "seu" armazém**: `http://<IP>:8081` (NORTE), `:8082` (CENTRO), `:8083` (SUL).
    Os portáteis têm de estar **na mesma rede Wi-Fi** do PC, e essa rede não pode isolar os clientes.
 5. Logo no arranque o sistema cria **uma ordem sozinho**: a FARINHA-25 do SUL começa abaixo do mínimo (70 < 80) →
@@ -67,22 +68,37 @@ wsl --shutdown
 | Portátil 2 | `http://<IP>:8082` — **Armazém CENTRO** (roxo) |
 | Portátil 3 | `http://<IP>:8083` — **Armazém SUL** (âmbar) |
 | **PC do grupo** (corre tudo) | separador **Monitor distribuído** (visão de todo o sistema) + PowerShell para as falhas |
+| **Telemóvel do professor** (ou um portátil livre) | `http://<IP>:8085` — **LOJA** (o cliente). Para mostrar o tempo real, abrir a loja também numa 2.ª janela no PC |
 
 O professor passa de carteira em carteira: em cada portátil vê **só o seu armazém**; no PC vê o sistema inteiro.
 
 ### O que há em cada painel de armazém
 - **Barra lateral**: nome e cidade do armazém, **estado deste nó** (activo / EM BAIXO) e **da sua BD**
   (primário / réplica promovida), e a navegação. Em cima, o caminho (ex.: "Armazém CENTRO / Stock").
-- **Stock**: cartões (abaixo do mínimo, pendentes, enviadas, **unidades em encomenda**), gráfico **Nível de stock por produto**
+- **Stock**: cartões (abaixo do mínimo, **pedidos de clientes pendentes**, **vendas de hoje (MZN)**, ordens pendentes/enviadas,
+  **unidades em encomenda**), gráfico **Nível de stock por produto**
   (verde/amarelo/vermelho; cor do armazém = em encomenda; tracejado = mínimo), gráfico **Evolução do stock**
-  (área com gradiente: o "dente de serra"), formulário **Registar saída** e a tabela do armazém.
+  (área com gradiente: o "dente de serra"), formulário **Registar saída manual** (quebras, perdas) e a tabela do armazém
+  (com as colunas **Reservado** e **Disponível** = quantidade − reservado).
+- **Pedidos de clientes** (2.º item da barra lateral, com um **contador vermelho** de pendentes): cartões com cliente,
+  produtos e total, e os botões **Autorizar** / **Recusar** (motivos rápidos ou escrito); por baixo, o histórico com o
+  **Recibo PDF**. Um pedido novo aparece sozinho, com a notificação "Novo pedido de cliente".
 - **Ordens**, **Movimentos** e **Ficheiros HDFS**: só os deste armazém (numa ordem aparece a repartição completa,
   para se perceber a ordem consolidada).
 - **Fornecedor**: interruptor Normal / Em baixo / Lento / Com erros.
 - **Monitor distribuído** (o único com visão global): **Estado do sistema** (todos os nós, Central, HDFS, fornecedor,
   primário/réplica de cada fragmento), **Cenários de demo** (botão **⚡ Pico simultâneo**), exclusão mútua, 2PC,
   relógios Berkeley, base de dados distribuída e reposições.
-- **Notificações** (canto inferior direito): alerta de stock, ordem criada/enviada/entregue, nó caiu/voltou, réplica promovida.
+- **Notificações** (canto inferior direito): alerta de stock, ordem criada/enviada/entregue, nó caiu/voltou, réplica promovida,
+  novo pedido de cliente.
+
+### A loja (`:8085`)
+Cidade no topo (**Maputo** = SUL, **Beira** = CENTRO, **Nampula** = NORTE), cartões de produto com preço e
+**"N disponíveis em <cidade>"** (actualiza a cada 1,5 s; quando muda aparece um **−3**/**+400** ao lado), carrinho à direita
+com nome, telefone e pagamento **simulado** (M-Pesa / e-Mola / Cartão), e a página **"o meu pedido"**, que passa sozinha de
+*À espera de autorização* a **Autorizado** (com recibo PDF) ou **Recusado** (com o motivo). "Os meus pedidos" (em cima)
+lista os pedidos feitos naquele dispositivo. Se o disponível descer abaixo do que está no carrinho (outro cliente comprou),
+a quantidade é ajustada sozinha, com um aviso laranja.
 
 ## 2. Fluxo normal de uma compra (3 min) — critérios SBDD, CORBA, Serviços Web, DFS
 
@@ -103,6 +119,36 @@ O professor passa de carteira em carteira: em cada portátil vê **só o seu arm
    → `ALERTA CRITICO de NORTE: produto=OLEO-5 …` (e as rondas do Berkeley).
 7. **Receber entrega**: em **Ordens**, botão "Receber entrega" → 2PC (RECEBER_ENTREGA) → a ordem fica **ENTREGUE**
    e o stock de cada armazém sobe (gráfico **Evolução do stock** e **Movimentos**, com as ENTRADAs).
+
+## 2b. Loja: compra → reserva em tempo real → autorização → reposição (4 min)
+
+Usar **Sabão em barra** em **Maputo** (SUL: 350 em stock, mínimo 200; não é usado noutros cenários).
+
+| Passo | Acção | O que deve aparecer |
+|---|---|---|
+| 1 | Abrir a loja em **duas janelas** lado a lado no PC (ou PC + telemóvel), ambas em **Maputo** | "350 disponíveis em Maputo" no Sabão |
+| 2 | Janela A: no cartão do Sabão, escrever **151** na quantidade → **Adicionar**; nome e telefone → **Pagar e encomendar** | página "À espera de autorização do armazém" |
+| 3 | Janela B (sem tocar) | o Sabão desce sozinho para **199** com um **−151** vermelho (a reserva) |
+| 4 | Portátil do **SUL (:8083)** | notificação **"Novo pedido de cliente"**, contador vermelho em **Pedidos de clientes**, cartão "pedidos pendentes" |
+| 5 | **Reposição a disparar**: (350 − 151) + 0 = 199 < 200 → notificação **"Ordem OC-SUL-… criada (2PC)"** e depois **enviada** (SOAP) | ~4 s depois do passo 2 |
+| 6 | No SUL: **Pedidos de clientes → Autorizar** | a janela A passa sozinha a **"Pedido autorizado"** com o botão **Descarregar recibo (PDF)** |
+| 7 | SUL → **Stock**: o Sabão tem quantidade **199** e reservado 0; **Movimentos**: `SAIDA · VENDA · origem LOJA`, com Lamport e hora corrigida; cartão **vendas de hoje** = 9 060 MZN | — |
+| 8 | SUL → **Ficheiros HDFS**: `/scad/recibos/AAAA/MM/PED-SUL-….pdf` e a factura da ordem (`/scad/facturas/…`, com quantidade × preço de custo e total) | réplicas 3/3 |
+| 9 | Nova compra (ex.: 1 Feijão) → no SUL **Recusar** → motivo "Cliente não atendeu o telefone" | o cliente vê **"Pedido recusado"** com o motivo; o Feijão volta a subir na loja (**+1**) |
+
+**Porque é que a reposição dispara na compra e não na autorização?** A condição é
+**(quantidade − reservado) + em_encomenda < mínimo**. A reserva baixa o disponível; ao autorizar, a quantidade e o reservado
+descem juntos, por isso o disponível não muda. É na compra que o armazém "perde" a mercadoria (decisão do grupo).
+
+**Última unidade (concorrência)**, no PowerShell do PC:
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\demo-ultima-unidade.ps1 -Cidade CENTRO -Produto OLEO-5
+```
+Um "grossista" reserva tudo menos 1 unidade (aparece no painel do CENTRO). Depois 6 clientes compram a última unidade
+**ao mesmo tempo** → `1 × 201 CONSEGUIU` e `5 × 409 "esgotou entretanto: outro cliente comprou as últimas unidades"`.
+Na loja (Beira), o Óleo mostra **Esgotado**. No fim, **recusar** o pedido do grossista no painel do CENTRO para libertar a reserva.
+Explicar: é um `UPDATE` condicional (`quantidade − reservado >= n`) numa **só** BD; o PostgreSQL bloqueia a linha e a
+2.ª transacção volta a avaliar a condição → não precisa de Ricart-Agrawala nem de 2PC.
 
 ## 3. Pico simultâneo — exclusão mútua (2 min) — critério SOD
 
@@ -156,6 +202,7 @@ docker compose -f deploy/local/docker-compose.yml stop no-centro
 | Notificação "Nó CENTRO caiu" em todos os painéis | ~2 s |
 | Saída no CENTRO dá erro (a "loja" CENTRO está em baixo) | — |
 | Uma compra no NORTE continua a funcionar e **inclui o armazém CENTRO** (o 2PC fala directamente com o fragmento) | ex.: Feijão, NORTE, 100 |
+| **Loja**: **Beira** fica "Indisponível de momento" (ícone de rede cortada) e não deixa comprar; **Maputo e Nampula continuam** a vender | ~4 s |
 
 Voltar: `docker compose -f deploy/local/docker-compose.yml start no-centro` → `CENTRO: VIVO` (reintegrado).
 
@@ -215,6 +262,12 @@ continua válida.
 - **JacORB em Java 17?** O JDK 11 removeu o CORBA e o RMI-IIOP; usamos `jacorb-omgapi` + `yoko-rmi-spec` + 2 delegates mínimos (ver `docs/notas-relatorio.md`).
 - **Alertas oneway perdidos?** POA persistente, `_non_existent()` antes do envio e deduplicação na Central.
 - **Idempotência no fornecedor?** O id da ordem é a chave (`Idempotency-Key` em REST, `ordemId` em SOAP).
+- **Dois clientes compram a última unidade: porque não usam Ricart-Agrawala?** O stock de um armazém está num só fragmento
+  (um só primário): o lock de linha e o `UPDATE` condicional do PostgreSQL já serializam as compras. A exclusão mútua
+  distribuída só é precisa quando vários nós decidem sobre um recurso partilhado sem um ponto comum (a ordem ao fornecedor).
+- **O tempo real é push?** Não: polling de 1,5 s (catálogo da loja, "o meu pedido", pedidos no painel). É simples, passa por
+  qualquer proxy e um nó em baixo só afecta os pedidos a esse nó; com SSE seria preciso manter ligações abertas a cada nó.
+- **Pagamento?** Simulado: gera-se uma referência `SIM-…`; não há contas nem dados de pagamento.
 
 ## 7. Se algo correr mal durante a demo
 

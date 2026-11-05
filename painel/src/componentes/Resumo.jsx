@@ -1,18 +1,18 @@
 import React from 'react';
-import { AlertTriangle, Clock, PackagePlus, Send, Server } from 'lucide-react';
+import { AlertTriangle, Banknote, Clock, PackagePlus, Send, Server, ShoppingBag } from 'lucide-react';
 import { abaixoDoMinimo } from '../tema.js';
 
-function Kpi({ icone: Icone, cor, valor, rotulo, nota }) {
+function Kpi({ icone: Icone, cor, valor, unidade, rotulo, nota }) {
   return (
     <div className="kpi">
       <div className="icone" style={{ background: 'var(--cartao2)', color: cor }}><Icone size={24} /></div>
-      <div><div className="valor">{valor}</div><div className="rotulo">{rotulo}</div>{nota && <div className="nota">{nota}</div>}</div>
+      <div><div className="valor">{valor}{unidade && <small>{unidade}</small>}</div><div className="rotulo">{rotulo}</div>{nota && <div className="nota">{nota}</div>}</div>
     </div>
   );
 }
 
 /** Cartões de resumo no topo de todos os ecrãs. */
-export default function Resumo({ regiao, vivos, stock, ordens }) {
+export default function Resumo({ regiao, vivos, stock, ordens, loja }) {
   const linhas = (stock && stock.stock) || [];
   const meus = regiao ? linhas.filter((l) => l.armazemId === regiao) : linhas;
   const os = ordens || [];
@@ -24,6 +24,10 @@ export default function Resumo({ regiao, vivos, stock, ordens }) {
       <Kpi icone={AlertTriangle} cor="#ef4444" valor={abaixo.length}
            rotulo={regiao ? `produtos abaixo do mínimo (${regiao})` : 'produtos abaixo do mínimo'}
            nota={abaixo.length > 0 && `${comEncomenda} já com encomenda a caminho`} />
+      <Kpi icone={ShoppingBag} cor="var(--destaque)" valor={loja ? loja.pendentes : '…'}
+           rotulo="pedidos de clientes pendentes" />
+      <Kpi icone={Banknote} cor="#22c55e" valor={loja ? Math.round(loja.vendasHoje).toLocaleString('pt-PT') : '…'} unidade="MZN"
+           rotulo="vendas de hoje (loja)" />
       <Kpi icone={Clock} cor="#eab308" valor={minhasOrdens.filter((o) => o.estado === 'PENDENTE_ENVIO').length}
            rotulo="ordens pendentes de envio" />
       <Kpi icone={Send} cor="var(--destaque)" valor={minhasOrdens.filter((o) => o.estado === 'ENVIADA').length}

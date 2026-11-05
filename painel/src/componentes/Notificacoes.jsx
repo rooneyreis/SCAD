@@ -8,10 +8,10 @@ const ICONE = { alerta: AlertTriangle, sucesso: CheckCircle2, aviso: ServerCrash
 
 /**
  * Compara cada leitura com a anterior e gera notificações para os acontecimentos importantes:
- * alerta de stock, ordem criada/enviada/entregue, nó caiu/voltou, réplica promovida.
+ * alerta de stock, ordem criada/enviada/entregue, nó caiu/voltou, réplica promovida, novo pedido da loja.
  * A primeira leitura serve só de referência (não gera notificações).
  */
-export function useDetectorEventos({ estados, stock, ordens, fragmentos, regiao }) {
+export function useDetectorEventos({ estados, stock, ordens, fragmentos, pedidos, regiao }) {
   const [lista, setLista] = useState([]);
   const anterior = useRef({});
 
@@ -63,6 +63,18 @@ export function useDetectorEventos({ estados, stock, ordens, fragmentos, regiao 
     }
     anterior.current.ordens = new Map(ordens.map((o) => [o.id, o]));
   }, [ordens]);
+
+  useEffect(() => {
+    if (!pedidos) return;
+    const antes = anterior.current.pedidos;
+    if (antes) {
+      pedidos.filter((p) => p.estado === 'PENDENTE' && !antes.has(p.id)).forEach((p) => {
+        const total = Number(p.total).toLocaleString('pt-PT', { minimumFractionDigits: 2 });
+        notificar('info', `Novo pedido de cliente: ${p.id}`, `${p.clienteNome} · ${p.linhas.length} produto(s) · ${total} MZN`);
+      });
+    }
+    anterior.current.pedidos = new Set(pedidos.map((p) => p.id));
+  }, [pedidos]);
 
   useEffect(() => {
     if (!fragmentos) return;

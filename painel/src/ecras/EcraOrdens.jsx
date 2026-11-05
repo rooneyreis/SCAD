@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { FileDown, PackageCheck, Receipt } from 'lucide-react';
 import { paraNo, urlFicheiro } from '../api.js';
+import { mzn } from '../tema.js';
 
 /** Caminho da factura no HDFS: /scad/facturas/AAAA/MM/OC-xxx.pdf (data UTC da ordem). */
 function caminhoFactura(o) {
@@ -39,7 +40,8 @@ export default function EcraOrdens({ regiao, vivos, ordens, recarregar }) {
       {lista.length > 0 && (
         <table>
           <thead>
-            <tr><th>Ordem</th><th>Estado</th><th>Produto / fornecedor</th><th>Canal</th><th className="num">Total</th>
+            <tr><th>Ordem</th><th>Estado</th><th>Produto / fornecedor</th><th>Canal</th><th className="num">Quantidade</th>
+              <th className="num">Preço unit. (custo)</th><th className="num">Valor</th>
               <th>Repartição por armazém</th><th>Confirmação</th><th>Factura</th><th /></tr>
           </thead>
           <tbody>
@@ -50,6 +52,8 @@ export default function EcraOrdens({ regiao, vivos, ordens, recarregar }) {
                 <td>{o.produtoNome}<div className="suave">{o.fornecedorNome}</div></td>
                 <td><span className="etiqueta cinza">{o.protocolo}</span></td>
                 <td className="num"><b>{o.quantidadeTotal}</b></td>
+                <td className="num">{mzn(o.precoUnitario)}</td>
+                <td className="num"><b>{mzn(o.total)}</b></td>
                 <td className="mono">{Object.entries(o.linhas).map(([a, q]) => (
                   <span key={a} style={{ fontWeight: a === regiao ? 800 : 400, marginRight: 10 }}>{a} {q}</span>))}</td>
                 <td className="mono">{o.confirmacao || '—'}{o.prazoEntrega && <div className="suave">entrega {o.prazoEntrega}</div>}</td>
